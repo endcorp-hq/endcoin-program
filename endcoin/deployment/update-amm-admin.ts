@@ -12,27 +12,25 @@ const program = anchor.workspace.Endcoin as Program<Endcoin>;
 let values: TestValues = createValues();
 
 // Create AMM  
-async function create_amm() {
+async function update_amm() {
   const tx = await program.methods
-    .createAmm(values.fee)
+    .updateAdmin(values.admin.publicKey)
     .accountsStrict({
       amm: values.ammKey,
       admin: values.admin.publicKey,
-      authority: provider.wallet.publicKey,
-      systemProgram: SystemProgram.programId,
     })
     .signers([values.admin])
     .rpc({ skipPreflight: false });
 
   const ammAccount = await program.account.amm.fetch(values.ammKey);
-  console.log("AMM created:", {
+  console.log("AMM updated:", {
     admin: ammAccount.admin.toBase58(),
     fee: ammAccount.fee,
     signature: tx,
   });
 }
 
-create_amm().catch((err) => {
-  console.error("create_amm failed:", err.toString());
+update_amm().catch((err) => {
+  console.error("update_amm failed:", err.toString());
   process.exit(1);
 });

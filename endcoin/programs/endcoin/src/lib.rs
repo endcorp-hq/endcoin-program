@@ -10,16 +10,16 @@ pub use contexts::*;
 pub mod contexts;
 
 
-declare_id!("ENDgsTHhw9x8c3d49HQe5QuvzQPbL9BCHGs5fd9vgphp");
+declare_id!("B6tCcVMPoQYtznwRNLAoKnwMQy95c73jg8AQBp3v9dY2");
 
 #[program]
 pub mod endcoin {
     use super::*;
 
-    pub fn create_amm(ctx: Context<CreateAmm>, id: Pubkey, fee: u16) -> Result<()> {
+    pub fn create_amm(ctx: Context<CreateAmm>, fee: u16) -> Result<()> {
         // Validate fee is within acceptable range (0-100%)
         require!(fee <= 10000, AmmError::InvalidFee); // 10000 = 100.00%
-        ctx.accounts.create_amm(id, fee)?;
+        ctx.accounts.create_amm(fee)?;
         Ok(())
     }
 

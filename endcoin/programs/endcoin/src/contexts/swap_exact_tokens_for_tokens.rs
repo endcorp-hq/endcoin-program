@@ -10,7 +10,7 @@ use anchor_spl::{
 use fixed::types::I64F64;
 
 use crate::{
-    constants::{AMM_SEED, AUTHORITY_SEED, POOL_AUTHORITY_SEED},
+    constants::{AMM_SEED, POOL_AUTHORITY_SEED},
     errors::*,
     state::Amm,
     state::Pool,
@@ -20,8 +20,7 @@ use crate::{
 pub struct SwapExactTokensForTokens<'info> {
     #[account(
         seeds = [
-            AMM_SEED,
-            amm.id.as_ref(),
+            AMM_SEED
         ],
         bump,
     )]

@@ -1,4 +1,5 @@
 use anchor_lang::{
+    require,
     prelude::Result,
     solana_program::{
         account_info::AccountInfo,
@@ -13,12 +14,16 @@ use anchor_lang::{
 
 use anchor_spl::token_interface::spl_token_2022::{
     extension::{BaseStateWithExtensions, Extension, StateWithExtensions},
-    solana_zk_token_sdk::zk_token_proof_instruction::Pod,
     state::Mint,
 };
+use bytemuck::Pod;
 
 use spl_tlv_account_resolution::{account::ExtraAccountMeta, state::ExtraAccountMetaList};
-use spl_type_length_value::variable_len_pack::VariableLenPack;
+
+use crate::{
+    constants::FEE_BPS_DENOMINATOR,
+    errors::AmmError
+};
 
 pub fn update_account_lamports_to_minimum_balance<'info>(
     account: AccountInfo<'info>,
@@ -33,15 +38,6 @@ pub fn update_account_lamports_to_minimum_balance<'info>(
         )?;
     }
     Ok(())
-}
-
-pub fn get_mint_extensible_extension_data<T: Extension + VariableLenPack>(
-    account: &mut AccountInfo,
-) -> Result<T> {
-    let mint_data = account.data.borrow();
-    let mint_with_extension = StateWithExtensions::<Mint>::unpack(&mint_data)?;
-    let extension_data = mint_with_extension.get_variable_len_extension::<T>()?;
-    Ok(extension_data)
 }
 
 pub fn get_mint_extension_data<T: Extension + Pod>(account: &mut AccountInfo) -> Result<T> {
@@ -70,3 +66,14 @@ pub fn get_meta_list_size(approve_account: Option<Pubkey>) -> usize {
 }
 
 
+pub fn compute_fee_bps(amount_lamports: u64, fee_bps: u16) -> Result<u64> {
+    require!(fee_bps as u64 <= 10_000, AmmError::InvalidFeeBps);
+    if fee_bps == 0 || amount_lamports == 0 {
+        return Ok(0);
+    }
+    let numerator = (amount_lamports as u128)
+        .checked_mul(fee_bps as u128)
+        .ok_or(AmmError::ArithmeticOverflow)?;
+    let fee = numerator / FEE_BPS_DENOMINATOR as u128; // deterministic round-down
+    u64::try_from(fee).map_err(|_| AmmError::ArithmeticOverflow.into())
+}

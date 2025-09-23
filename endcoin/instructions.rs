@@ -17,7 +17,7 @@ use anchor_spl::{
 use spl_pod::optional_keys::OptionalNonZeroPubkey;
 
 use crate::{
-    constants::{AMM_SEED, AUTHORITY_SEED, META_LIST_ACCOUNT_SEED, POOL_AUTHORITY_SEED, SST_SEED}, get_meta_list_size, get_mint_extensible_extension_data, get_mint_extension_data, update_account_lamports_to_minimum_balance, AmmError, SstError, SST
+    constants::{AMM_SEED, AUTHORITY_SEED, META_LIST_ACCOUNT_SEED, POOL_AUTHORITY_SEED, SST_SEED}, get_meta_list_size,  get_mint_extension_data, update_account_lamports_to_minimum_balance, AmmError, SstError, SST
 };
 use crate::state::{Pool, Amm};
 
@@ -393,7 +393,7 @@ pub fn handler(ctx: Context<Initialize>, args: InitializeArgs) -> Result<()> {
 
     token_mint.reload()?;
     let mint_data = &mut token_mint.to_account_info();
-    let metadata = get_mint_extensible_extension_data::<TokenMetadata>(mint_data)?;
+    let metadata = get_mint_extension_data::<TokenMetadata>(mint_data)?;
     assert_eq!(metadata.mint, token_mint.key());
     let metadata_pointer = get_mint_extension_data::<MetadataPointer>(mint_data)?;
     let mint_key: Option<Pubkey> = Some(token_mint.key());

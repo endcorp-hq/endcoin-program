@@ -7,16 +7,26 @@ use anchor_spl::{
     },
 };
 use crate::{
-    constants::REWARD_VAULT_SEED, errors::AmmError, state::{Pool, RewardVault}
+    constants::{REWARD_VAULT_SEED, AMM_SEED}, errors::AmmError, state::{Pool, RewardVault},
+    Amm,
 };
 
 impl<'info> CreateRewardVault<'info> {
     pub fn create_reward_vault(&mut self, bumps: &CreateRewardVaultBumps) -> Result<()> {
+
+        require!(self.mint_a.key() != self.mint_b.key(), AmmError::InvalidMint);
+        require!(self.payer.key() == self.amm.admin, 
+        AmmError::UnauthorizedAdmin);
         let reward_vault = &mut self.reward_vault;
-        reward_vault.pool = self.pool.key();
-        reward_vault.mint_a = self.mint_a.key();
-        reward_vault.mint_b = self.mint_b.key();
-        reward_vault.bump = bumps.reward_vault;
+
+        reward_vault.set_inner(
+            RewardVault {
+                pool: self.pool.key(),
+                mint_a: self.mint_a.key(),
+                mint_b: self.mint_b.key(),
+                bump: bumps.reward_vault,
+            }
+        );
 
         Ok(())
 
@@ -25,6 +35,9 @@ impl<'info> CreateRewardVault<'info> {
 
 impl<'info> CreateRewardTokenAccounts<'info> {
     pub fn create_reward_token_accounts(&mut self) -> Result<()> {
+
+        require!(self.mint_a.key() != self.mint_b.key(), AmmError::InvalidMint);
+        require!(self.payer.key() == self.amm.admin, AmmError::UnauthorizedAdmin);
 
         Ok(())
     }
@@ -44,20 +57,26 @@ pub struct CreateRewardVault<'info> {
             REWARD_VAULT_SEED,
         ],
         bump,
-        // todo: confirm all constraints for pool account.
-        // constraint = mint_a.key() != mint_b.key() @ AmmError::InvalidMint,
     )]
     pub reward_vault: Box<Account<'info, RewardVault>>,
 
     #[account(
         seeds = [
-            pool.amm.as_ref(),
-            pool.mint_a.key().as_ref(),
-            pool.mint_b.key().as_ref(),
+            amm.key().as_ref(),
+            mint_a.key().as_ref(),
+            mint_b.key().as_ref(),
         ],
         bump,
     )]
     pub pool: Box<Account<'info, Pool>>,
+
+    #[account(
+        seeds = [
+            AMM_SEED,
+        ],
+        bump,
+    )]
+    pub amm: Box<Account<'info, Amm>>,
 
     #[account(mut)]
     pub mint_a: Box<InterfaceAccount<'info, Mint>>,
@@ -78,15 +97,23 @@ pub struct CreateRewardVault<'info> {
 pub struct CreateRewardTokenAccounts<'info> {
     #[account(
         seeds = [
-            pool.amm.as_ref(),
-            pool.mint_a.key().as_ref(),
-            pool.mint_b.key().as_ref(),
+            amm.key().as_ref(),
+            mint_a.key().as_ref(),
+            mint_b.key().as_ref(),
         ],
         bump,
         has_one = mint_a,
         has_one = mint_b,
     )]
     pub pool: Box<Account<'info, Pool>>,
+
+    #[account(
+        seeds = [
+            AMM_SEED,
+        ],
+        bump,
+    )]
+    pub amm: Box<Account<'info, Amm>>,
 
     #[account(
         init,

@@ -25,12 +25,7 @@ impl<'info> ClaimReward<'info> {
             return Err(AmmError::InsufficientReward.into());
         }
 
-
-        
-
         let cpi_program_a = self.token_program.to_account_info();
-
-
 
         let pool_key = self.pool.key();
         let mint_a_key = self.mint_a.key();
@@ -77,7 +72,6 @@ impl<'info> ClaimReward<'info> {
         
         let cpi_program_b = self.token_program.to_account_info();
 
-        // coconuts to mints
         anchor_spl::token_interface::transfer_checked(
             CpiContext::new_with_signer(
                 cpi_program_b,

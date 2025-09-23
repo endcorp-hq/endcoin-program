@@ -38,7 +38,14 @@ pub enum AmmError {
     BumpError,
     
     #[msg("Overflow Error")]
-    Overflow
+    Overflow,
+
+    #[msg("Invalid Fee BPS")]
+    InvalidFeeBps,
+
+    #[msg("Arithmetic Overflow")]
+    ArithmeticOverflow
+
 }
 
 #[error_code]

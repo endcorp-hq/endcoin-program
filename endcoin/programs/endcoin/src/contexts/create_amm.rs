@@ -2,7 +2,7 @@ use anchor_lang::prelude::*;
 use crate::{constants::AMM_SEED, errors::*, program::Endcoin, state::Amm};
 
 #[derive(Accounts)]
-#[instruction(id: Pubkey, fee: u16)]
+#[instruction(fee: u16)]
 pub struct CreateAmm<'info> {
     // The AMM account
     #[account(
@@ -11,7 +11,6 @@ pub struct CreateAmm<'info> {
         space = Amm::LEN,
         seeds = [
             AMM_SEED,
-            id.as_ref(),
         ],
         bump,
         constraint = fee >= 5 && fee < 10000 @ AmmError::InvalidFee,
@@ -23,10 +22,7 @@ pub struct CreateAmm<'info> {
         constraint = admin.is_signer @ AmmError::UnauthorizedAdmin
     )]
     pub admin: Signer<'info>,
-    #[account(constraint = program.programdata_address()? == Some(program_data.key()))]
-    pub program: Program<'info, Endcoin>,
-    #[account(constraint = program_data.upgrade_authority_address == Some(authority.key()))]
-    pub program_data: Account<'info, ProgramData>,
+
     // The account paying for all rents
     #[account(mut)]
     pub authority: Signer<'info>,
@@ -40,8 +36,7 @@ pub struct UpdateAmm<'info> {
     #[account(
         mut,
         seeds = [
-            AMM_SEED,
-            amm.id.as_ref()
+            AMM_SEED
         ],
         bump,
     )]
@@ -59,8 +54,7 @@ pub struct UpdateFee<'info> {
     #[account(
         mut,
         seeds = [
-            AMM_SEED,
-            amm.id.as_ref()
+            AMM_SEED
         ],
         bump,
     )]
@@ -77,31 +71,23 @@ pub struct UpdateFee<'info> {
 impl<'info> CreateAmm<'info> {
     pub fn create_amm(
         &mut self, 
-        id: Pubkey, 
         fee: u16
     ) -> Result<()> {
 
         // Check if the AMM has already been created
-        if self.amm.created {
-            msg!("AMM has already been created, cannot create again");
-            return Err(AmmError::AlreadyCreated.into());
-        } else {
-
-            // set inner values of amm
-            self.amm.set_inner(
-                Amm {
-                    id,
-                    admin: self.admin.key(),
-                    fee,
-                    created: true,
-                    is_immutable: false, // Defaulting to false when created
-                }
-            );
-            
-            msg!("AMM Created, setting created state to True");
-        
-            Ok(())
-        
+        match self.amm.created {
+            true => return Err(AmmError::AlreadyCreated.into()),
+            false => {
+                // set inner values of amm
+                self.amm.set_inner(
+                    Amm {
+                        admin: self.admin.key(),
+                        fee,
+                        created: true,
+                    }
+                );
+                Ok(())
+            }
         }
     }
     
@@ -113,40 +99,19 @@ impl<'info> UpdateAmm<'info> {
         new_admin: Pubkey,
     ) -> Result<()> {
         
-        // Check if the AMM has already been created by checking if the id is not the default value
-        if self.amm.id == Pubkey::default() {
-            msg!("AMM has not been created, cannot update admin");
-            return Err(AmmError::NotCreated.into());
-        }
-        // Check if the AMM is immutable. If it is, then it cannot be updated.
-        if self.amm.is_immutable {
-            msg!("AMM Is now immutable. Cannot update.");
-            return Err(AmmError::UnauthorizedAdmin.into());
-        }
+        // Check if the AMM has already been created
+        require!(self.amm.created, AmmError::NotCreated);
 
         // Add in a check for the admin's signature
-        if !self.admin.is_signer {
-            return Err(AmmError::NotSigner.into());
+        match self.admin.key() == self.amm.admin {
+            true => {
+                self.amm.admin = new_admin;
+                msg!("Admin Updated");
+                return Ok(())
+            }
+            false => return Err(AmmError::NotSigner.into()),
         }
         
-        // Set the new admin
-        self.amm.admin = new_admin;
-        msg!("Admin Updated");
-        Ok(())
-    }
-
-    // Function to make the AMM immutable
-    pub fn make_immutable(&mut self) -> Result<()> {
-        // Check if the current admin is the signer
-        if self.admin.key() != self.admin.key() {
-            msg!("Unauthorized Admin, Cannot make AMM immutable");
-            return Err(AmmError::UnauthorizedAdmin.into());
-        }
-
-        // Set the AMM as immutable
-        self.amm.is_immutable = true;
-        msg!("AMM is now immutable");
-        Ok(())
     }
 }
 
@@ -156,26 +121,19 @@ impl<'info> UpdateFee<'info> {
         new_fee: u16,
     ) -> Result<()> {
         
-        // Check if the AMM has already been created by checking if the id is not the default value
-        if self.amm.id == Pubkey::default() {
-            msg!("AMM has not been created, cannot update admin");
-            return Err(AmmError::NotCreated.into());
-        }
-        // Check if the AMM is immutable. If it is, then it cannot be updated.
-        if self.amm.is_immutable {
-            msg!("AMM Is now immutable. Cannot update.");
-            return Err(AmmError::UnauthorizedAdmin.into());
-        }
+        // Check if the AMM has already been created
+        require!(self.amm.created, AmmError::NotCreated);
+
 
         // Add in a check for the admin's signature
-        if !self.admin.is_signer {
-            return Err(AmmError::NotSigner.into());
+        match self.admin.key() == self.amm.admin {
+            true => {
+                self.amm.fee = new_fee;
+                msg!("Fee Updated");
+                return Ok(())
+            }
+            false => return Err(AmmError::NotSigner.into()),
         }
-        
-        // Set the new admin
-        self.amm.fee = new_fee;
-        msg!("Admin Updated");
-        Ok(())
     }
-
+        
 }

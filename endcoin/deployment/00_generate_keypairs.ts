@@ -1,4 +1,4 @@
-import * as anchor from "@project-serum/anchor";
+import * as anchor from "@coral-xyz/anchor";
 
 const jsonfile = require('jsonfile');
 const file = './deployment/keys.json'

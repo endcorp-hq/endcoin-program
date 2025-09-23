@@ -2,9 +2,10 @@ import * as anchor from "@coral-xyz/anchor";
 import { Program } from "@coral-xyz/anchor";
 // no SystemProgram import needed
 import { ASSOCIATED_TOKEN_PROGRAM_ID, TOKEN_2022_PROGRAM_ID } from "@solana/spl-token";
-import { SystemProgram } from "@solana/web3.js";
+import { SystemProgram, LAMPORTS_PER_SOL } from "@solana/web3.js";
+import { PublicKey } from "@solana/web3.js";
 import { Endcoin } from "../target/types/endcoin";
-import { TestValues, createValues } from "./utils";
+import { TestValues, createValues, mintingTokens } from "./utils";
 
 async function run() {
   const provider = anchor.AnchorProvider.env();
@@ -21,14 +22,26 @@ async function run() {
     await connection.getBalance(values.admin.publicKey)
   );
 
-  // Create pool mint + pool PDA
+  console.log('adm key', values.admin.publicKey.toBase58())
+
+
+  // Init Reward Vault (payer must be AMM admin per on-chain checks)
+  const rewardVault = PublicKey.findProgramAddressSync(
+    [
+      values.poolKey.toBuffer(),
+      values.mintAKeypair.publicKey.toBuffer(),
+      values.mintBKeypair.publicKey.toBuffer(),
+      Buffer.from("reward-vault"),
+    ],
+    program.programId
+  )[0];
+
   await program.methods
-    .createPool()
+    .createRewardVault()
     .accountsStrict({
-      amm: values.ammKey,
+      rewardVault,
       pool: values.poolKey,
-      poolAuthority: values.poolAuthority,
-      mintLiquidity: values.mintLiquidity,
+      amm: values.ammKey,
       mintA: values.mintAKeypair.publicKey,
       mintB: values.mintBKeypair.publicKey,
       payer: provider.wallet.publicKey, 
@@ -39,27 +52,10 @@ async function run() {
     .signers([provider.wallet.payer])
     .rpc({ skipPreflight: false });
 
-  // Create pool token accounts (ATAs)
-  await program.methods
-    .createTokenAccounts()
-    .accountsStrict({
-      poolAccountA: values.poolAccountA,
-      poolAccountB: values.poolAccountB,
-      poolAuthority: values.poolAuthority,
-      amm: values.ammKey,
-      mintA: values.mintAKeypair.publicKey,
-      mintB: values.mintBKeypair.publicKey,
-      payer: provider.wallet.publicKey, 
-      systemProgram: SystemProgram.programId,
-      associatedTokenProgram: ASSOCIATED_TOKEN_PROGRAM_ID,
-      tokenProgram: TOKEN_2022_PROGRAM_ID,
-    }).signers([provider.wallet.payer])
-    .rpc({ skipPreflight: false });
-
-  console.log("Pool created:", values.poolKey.toBase58());
+  console.log("Reward Vault created:", rewardVault.toBase58());
 }
 
 run().catch((err) => {
-  console.error("create-pool failed:", err.toString());
+  console.error("create-reward failed:", err.toString());
   process.exit(1);
 });

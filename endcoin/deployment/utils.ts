@@ -4,12 +4,13 @@ import {
   getAssociatedTokenAddressSync,
   getOrCreateAssociatedTokenAccount,
   mintTo,
+  TOKEN_2022_PROGRAM_ID,
 } from "@solana/spl-token";
 import { Keypair, PublicKey, Connection, Signer } from "@solana/web3.js";
 import { BN } from "bn.js";
-
+import { readFileSync } from "fs";
 export async function sleep(seconds: number) {
-  new Promise((resolve) => setTimeout(resolve, seconds * 1000));
+  return new Promise((resolve) => setTimeout(resolve, seconds * 1000));
 }
 
 export const generateSeededKeypair = (seed: string) => {
@@ -45,16 +46,15 @@ export const mintingTokens = async ({
   decimals?: number;
 }) => {
   // Mint tokens
- // await connection.confirmTransaction(
-    // await connection.requestAirdrop(creator.publicKey, 10 ** 10)
- // );
   await createMint(
     connection,
     creator,
     creator.publicKey,
     creator.publicKey,
     decimals,
-    mintAKeypair
+    mintAKeypair,
+    undefined,
+    TOKEN_2022_PROGRAM_ID
   );
   await createMint(
     connection,
@@ -62,21 +62,29 @@ export const mintingTokens = async ({
     creator.publicKey,
     creator.publicKey,
     decimals,
-    mintBKeypair
+    mintBKeypair,
+    undefined,
+    TOKEN_2022_PROGRAM_ID
   );
   await getOrCreateAssociatedTokenAccount(
     connection,
     holder,
     mintAKeypair.publicKey,
     holder.publicKey,
-    true
+    true,
+    "confirmed",
+    undefined,
+    TOKEN_2022_PROGRAM_ID
   );
   await getOrCreateAssociatedTokenAccount(
     connection,
     holder,
     mintBKeypair.publicKey,
     holder.publicKey,
-    true
+    true,
+    "confirmed",
+    undefined,
+    TOKEN_2022_PROGRAM_ID
   );
   await mintTo(
     connection,
@@ -85,10 +93,14 @@ export const mintingTokens = async ({
     getAssociatedTokenAddressSync(
       mintAKeypair.publicKey,
       holder.publicKey,
-      true
+      true,
+      TOKEN_2022_PROGRAM_ID
     ),
     creator.publicKey,
-    mintedAmount * 10 ** decimals
+    mintedAmount * 10 ** decimals,
+    [],
+    undefined,
+    TOKEN_2022_PROGRAM_ID
   );
   await mintTo(
     connection,
@@ -97,15 +109,18 @@ export const mintingTokens = async ({
     getAssociatedTokenAddressSync(
       mintBKeypair.publicKey,
       holder.publicKey,
-      true
+      true,
+      TOKEN_2022_PROGRAM_ID
     ),
     creator.publicKey,
-    mintedAmount * 10 ** decimals
+    mintedAmount * 10 ** decimals,
+    [],
+    undefined,
+    TOKEN_2022_PROGRAM_ID
   );
 };
 
 export interface TestValues {
-  id: PublicKey;
   fee: number;
   admin: Keypair;
   mintAKeypair: Keypair;
@@ -115,6 +130,7 @@ export interface TestValues {
   minimumLiquidity: anchor.BN;
   poolKey: PublicKey;
   poolAuthority: PublicKey;
+  mintLiquidityKeypair: Keypair;
   mintLiquidity: PublicKey;
   depositAmountA: anchor.BN;
   depositAmountB: anchor.BN;
@@ -131,42 +147,63 @@ type TestValuesDefaults = {
   [K in keyof TestValues]+?: TestValues[K];
 };
 export function createValues(defaults?: TestValuesDefaults): TestValues {
-  const id = defaults?.id || Keypair.generate().publicKey;
-  const admin = Keypair.generate();
+
+  let admin = anchor.AnchorProvider.env().wallet.payer;
+
   const ammKey = PublicKey.findProgramAddressSync(
     [Buffer.from("amm")],
     anchor.workspace.Endcoin.programId
   )[0];
 
   // Making sure tokens are in the right order
-  const mintAKeypair = Keypair.generate();
-  let mintBKeypair = Keypair.generate();
-  while (
-    new BN(mintBKeypair.publicKey.toBytes()).lt(
-      new BN(mintAKeypair.publicKey.toBytes())
+  // load keypairs from json files (support raw array or named property)
+  const endcoinRaw = JSON.parse(
+    readFileSync(
+      "./deployment/keys/ENDxPmLfBBTVby7DBYUo4gEkFABQgvLP2LydFCzGGBee.json",
+      "utf8"
     )
-  ) {
-    mintBKeypair = Keypair.generate();
-  }
+  );
+  const endcoinSecret: number[] = Array.isArray(endcoinRaw)
+    ? endcoinRaw
+    : endcoinRaw.endcoin_mint;
+  const mintAKeypair = Keypair.fromSecretKey(
+    Uint8Array.from(endcoinSecret)
+  );
+
+  const gaiacoinRaw = JSON.parse(
+    readFileSync(
+      "./deployment/keys/GAiAxUPQrUaELAuri8tVC354bGuUGGykCN8tP4qfCeSp.json",
+      "utf8"
+    )
+  );
+  const gaiacoinSecret: number[] = Array.isArray(gaiacoinRaw)
+    ? gaiacoinRaw
+    : gaiacoinRaw.gaiacoin_mint;
+  let mintBKeypair = Keypair.fromSecretKey(Uint8Array.from(gaiacoinSecret));
 
   const poolAuthority = PublicKey.findProgramAddressSync(
     [
       ammKey.toBuffer(),
       mintAKeypair.publicKey.toBuffer(),
       mintBKeypair.publicKey.toBuffer(),
-      Buffer.from("authority"),
+      Buffer.from("pool-authority"),
     ],
     anchor.workspace.Endcoin.programId
   )[0];
-  const mintLiquidity = PublicKey.findProgramAddressSync(
-    [
-      ammKey.toBuffer(),
-      mintAKeypair.publicKey.toBuffer(),
-      mintBKeypair.publicKey.toBuffer(),
-      Buffer.from("liquidity"),
-    ],
-    anchor.workspace.Endcoin.programId
-  )[0];
+  
+
+  const mintLiquidityRaw = JSON.parse(
+    readFileSync(
+      "./deployment/keys/PLSxiYHus8rhc2NhXs2qvvhAcpsa4Q3TzTCi3o8xAEU.json",
+      "utf8"
+    )
+  );
+  const liquiditySecret: number[] = Array.isArray(mintLiquidityRaw)
+    ? mintLiquidityRaw
+    : mintLiquidityRaw.liquidity_mint;
+  let mintLiquidityKeypair = Keypair.fromSecretKey(Uint8Array.from(liquiditySecret));
+  const mintLiquidity = mintLiquidityKeypair.publicKey;
+  
   const poolKey = PublicKey.findProgramAddressSync(
     [
       ammKey.toBuffer(),
@@ -175,25 +212,28 @@ export function createValues(defaults?: TestValuesDefaults): TestValues {
     ],
     anchor.workspace.Endcoin.programId
   )[0];
+  
   const endcoinMetadata = PublicKey.findProgramAddressSync(
     [
       Buffer.from("endcoin_metadata")
     ],
     anchor.workspace.Endcoin.programId
   )[0];
+  
   const gaiacoinMetadata = PublicKey.findProgramAddressSync(
     [
       Buffer.from("gaiacoin_metadata")
     ],
     anchor.workspace.Endcoin.programId
   )[0];
+  
   return {
-    id,
     fee: 500,
     admin,
     ammKey,
     mintAKeypair,
     mintBKeypair,
+    mintLiquidityKeypair,
     mintLiquidity,
     poolKey,
     poolAuthority,
@@ -202,12 +242,14 @@ export function createValues(defaults?: TestValuesDefaults): TestValues {
     poolAccountA: getAssociatedTokenAddressSync(
       mintAKeypair.publicKey,
       poolAuthority,
-      true
+      true,
+      TOKEN_2022_PROGRAM_ID
     ),
     poolAccountB: getAssociatedTokenAddressSync(
       mintBKeypair.publicKey,
       poolAuthority,
-      true
+      true,
+      TOKEN_2022_PROGRAM_ID
     ),
     liquidityAccount: getAssociatedTokenAddressSync(
       mintLiquidity,
@@ -217,12 +259,14 @@ export function createValues(defaults?: TestValuesDefaults): TestValues {
     holderAccountA: getAssociatedTokenAddressSync(
       mintAKeypair.publicKey,
       admin.publicKey,
-      true
+      true,
+      TOKEN_2022_PROGRAM_ID
     ),
     holderAccountB: getAssociatedTokenAddressSync(
       mintBKeypair.publicKey,
       admin.publicKey,
-      true
+      true,
+      TOKEN_2022_PROGRAM_ID
     ),
     depositAmountA: new BN(4 * 10 ** 6),
     depositAmountB: new BN(1 * 10 ** 6),

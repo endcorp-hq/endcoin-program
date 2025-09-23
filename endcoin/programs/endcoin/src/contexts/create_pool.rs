@@ -22,8 +22,6 @@ impl<'info> CreatePool<'info> {
 
         Ok(())
 
-    
-
     }
 }
 
@@ -39,8 +37,7 @@ impl<'info> CreateTokenAccounts<'info> {
 pub struct CreatePool<'info> {
     #[account(
         seeds = [
-            AMM_SEED,
-            amm.id.as_ref()
+            AMM_SEED
         ],
         bump,
     )]
@@ -56,11 +53,10 @@ pub struct CreatePool<'info> {
             mint_b.key().as_ref(),
         ],
         bump,
-        // todo: confirm all constraints for pool account.
         constraint = mint_a.key() != mint_b.key() @ AmmError::InvalidMint,
     )]
     pub pool: Box<Account<'info, Pool>>,
-    /// CHECK:
+    /// CHECK: Read only authority
     #[account(
         seeds = [
             amm.key().as_ref(),
@@ -72,23 +68,6 @@ pub struct CreatePool<'info> {
     )]
     pub pool_authority: AccountInfo<'info>,
 
-    #[account(
-        init,
-        signer,
-        payer = payer,
-        mint::token_program = token_program,
-        mint::decimals = 6,
-        mint::authority = pool_authority,
-        mint::freeze_authority = pool_authority,
-        extensions::metadata_pointer::authority = pool_authority,
-        extensions::metadata_pointer::metadata_address = mint_liquidity,
-        extensions::group_member_pointer::authority = pool_authority,
-        extensions::group_member_pointer::member_address = mint_liquidity,
-        extensions::transfer_hook::authority = pool_authority,
-        extensions::transfer_hook::program_id = crate::ID,
-        extensions::close_authority::authority = pool_authority,
-        extensions::permanent_delegate::delegate = pool_authority,
-    )]
     pub mint_liquidity: Box<InterfaceAccount<'info, Mint>>,
 
     pub mint_a: Box<InterfaceAccount<'info, Mint>>,
@@ -122,7 +101,8 @@ pub struct CreateTokenAccounts<'info> {
         associated_token::authority = pool_authority,
     )]
     pub pool_account_b: Box<InterfaceAccount<'info, TokenAccount>>,
-    /// CHECK:
+    
+    /// CHECK: Read only authority
     #[account(
         seeds = [
             amm.key().as_ref(),
@@ -136,13 +116,11 @@ pub struct CreateTokenAccounts<'info> {
 
     #[account(
         seeds = [
-            AMM_SEED,
-            amm.id.as_ref()
+            AMM_SEED
         ],
         bump,
     )]
     pub amm: Box<Account<'info, Amm>>,
-
 
     pub mint_a: Box<InterfaceAccount<'info, Mint>>,
 

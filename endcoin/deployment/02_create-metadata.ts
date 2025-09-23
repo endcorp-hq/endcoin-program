@@ -3,7 +3,6 @@ import { Program } from "@project-serum/anchor";
 import { LAMPORTS_PER_SOL, PublicKey } from "@solana/web3.js";
 import { Endcoin } from "../target/types/endcoin";
 import { TestValues, createValues, expectRevert, mintingTokens } from "./utils";
-import { Metaplex } from "@metaplex-foundation/js";
 import { getMint, getAssociatedTokenAddressSync } from "@solana/spl-token";
 // metaplex token metadata program ID
 const TOKEN_METADATA_PROGRAM_ID = new anchor.web3.PublicKey(

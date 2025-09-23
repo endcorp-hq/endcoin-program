@@ -10,5 +10,6 @@ pub const AUTHORITY_SEED: &[u8] = b"authority";
 pub const SST_SEED: &[u8] = b"sea-surface-temperature";
 #[constant]
 pub const AMM_SEED: &[u8] = b"amm";
-// #[constant]
-// pub const META_LIST_ACCOUNT_SEED: &[u8] = b"extra-account-metas";
+
+#[constant]
+pub const FEE_BPS_DENOMINATOR: u16 = 10_000; // 100%
