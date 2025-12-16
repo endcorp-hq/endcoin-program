@@ -20,8 +20,8 @@ custom-heap = []
 custom-panic = []
 
 [dependencies]
-anchor-lang = { version = "0.31.1", features = ["init-if-needed"] }
-anchor-spl = { version = "0.31.1", features = ["metadata"] }
+anchor-lang = { version = "0.32.1", features = ["init-if-needed"] }
+anchor-spl = { version = "0.32.1", features = ["metadata"] }
 spl-tlv-account-resolution = "0.11.0"
 spl-transfer-hook-interface = "0.10.0"
 spl-type-length-value = "0.9.0"
