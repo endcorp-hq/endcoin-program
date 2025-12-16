@@ -44,8 +44,19 @@ pub enum AmmError {
     InvalidFeeBps,
 
     #[msg("Arithmetic Overflow")]
-    ArithmeticOverflow
+    ArithmeticOverflow,
 
+    #[msg("Swap input amount is too small")]
+    InputAmountTooSmall,
+
+    #[msg("Trader balance is insufficient for requested input")]
+    InsufficientBalance,
+
+    #[msg("Pool reserves are empty for this swap")]
+    InsufficientLiquidity,
+
+    #[msg("Invalid or non-finite temperature reading")]
+    InvalidTemperature,
 }
 
 #[error_code]

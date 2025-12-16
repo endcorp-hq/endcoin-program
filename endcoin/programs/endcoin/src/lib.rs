@@ -70,13 +70,13 @@ pub mod endcoin {
         ctx.accounts.claim_reward(claimer, amount_a, amount_b)
     }
 
-    pub fn swap_exact_tokens_for_tokens(
+    pub fn swap(
         ctx: Context<SwapExactTokensForTokens>,
         swap_a: bool,
         input_amount: u64,
         min_output_amount: u64,
     ) -> Result<()> {
-        ctx.accounts.swap_exact_tokens_for_tokens(
+        ctx.accounts.swap(
             swap_a,
             input_amount,
             min_output_amount,
