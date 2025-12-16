@@ -1,13 +1,9 @@
 use anchor_lang::prelude::*;
 use anchor_spl::{
-    associated_token::AssociatedToken, token_2022::TransferChecked, token_interface::{
-        Mint,
-        Token2022,
-        TokenAccount
-    }
+    associated_token::AssociatedToken,
+    token_2022::TransferChecked,
+    token_interface::{Mint, Token2022, TokenAccount},
 };
-
-use fixed::types::I64F64;
 
 use crate::{
     constants::{AMM_SEED, POOL_AUTHORITY_SEED},
@@ -60,7 +56,8 @@ pub struct SwapExactTokensForTokens<'info> {
         mut,
         constraint = pool_account_a.owner == pool_authority.key(),
         constraint = pool_account_a.mint == mint_a.key(),
-    )] pub pool_account_a: Box<InterfaceAccount<'info, TokenAccount>>,
+    )]
+    pub pool_account_a: Box<InterfaceAccount<'info, TokenAccount>>,
 
     #[account(
         mut,
@@ -73,17 +70,20 @@ pub struct SwapExactTokensForTokens<'info> {
         payer = payer,
         associated_token::mint = mint_a,
         associated_token::authority = trader,
-    )] pub trader_account_a: Box<InterfaceAccount<'info, TokenAccount>>,
+    )]
+    pub trader_account_a: Box<InterfaceAccount<'info, TokenAccount>>,
 
     #[account(
         init_if_needed,
         payer = payer,
         associated_token::mint = mint_b,
         associated_token::authority = trader,
-    )] pub trader_account_b: Box<InterfaceAccount<'info, TokenAccount>>,
+    )]
+    pub trader_account_b: Box<InterfaceAccount<'info, TokenAccount>>,
 
     /// The account paying for rent
-    #[account(mut)] pub payer: Signer<'info>,
+    #[account(mut)]
+    pub payer: Signer<'info>,
 
     // Solana accounts
     pub token_program: Program<'info, Token2022>,
@@ -173,6 +173,7 @@ impl<'info> SwapExactTokensForTokens<'info> {
                 input,
                 6,
             )?;
+
             anchor_spl::token_interface::transfer_checked(
                 CpiContext::new_with_signer(
                     self.token_program.to_account_info(),

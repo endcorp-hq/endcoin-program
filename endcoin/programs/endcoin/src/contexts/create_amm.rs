@@ -1,5 +1,5 @@
+use crate::{constants::AMM_SEED, errors::*, state::Amm};
 use anchor_lang::prelude::*;
-use crate::{constants::AMM_SEED, errors::*, program::Endcoin, state::Amm};
 
 #[derive(Accounts)]
 #[instruction(fee: u16)]
@@ -66,39 +66,26 @@ pub struct UpdateFee<'info> {
     pub admin: Signer<'info>,
 }
 
-
-
 impl<'info> CreateAmm<'info> {
-    pub fn create_amm(
-        &mut self, 
-        fee: u16
-    ) -> Result<()> {
-
+    pub fn create_amm(&mut self, fee: u16) -> Result<()> {
         // Check if the AMM has already been created
         match self.amm.created {
             true => return Err(AmmError::AlreadyCreated.into()),
             false => {
                 // set inner values of amm
-                self.amm.set_inner(
-                    Amm {
-                        admin: self.admin.key(),
-                        fee,
-                        created: true,
-                    }
-                );
+                self.amm.set_inner(Amm {
+                    admin: self.admin.key(),
+                    fee,
+                    created: true,
+                });
                 Ok(())
             }
         }
     }
-    
 }
 
 impl<'info> UpdateAmm<'info> {
-    pub fn update_admin(
-        &mut self,
-        new_admin: Pubkey,
-    ) -> Result<()> {
-        
+    pub fn update_admin(&mut self, new_admin: Pubkey) -> Result<()> {
         // Check if the AMM has already been created
         require!(self.amm.created, AmmError::NotCreated);
 
@@ -107,33 +94,26 @@ impl<'info> UpdateAmm<'info> {
             true => {
                 self.amm.admin = new_admin;
                 msg!("Admin Updated");
-                return Ok(())
+                return Ok(());
             }
             false => return Err(AmmError::NotSigner.into()),
         }
-        
     }
 }
 
 impl<'info> UpdateFee<'info> {
-    pub fn update_fee(
-        &mut self,
-        new_fee: u16,
-    ) -> Result<()> {
-        
+    pub fn update_fee(&mut self, new_fee: u16) -> Result<()> {
         // Check if the AMM has already been created
         require!(self.amm.created, AmmError::NotCreated);
-
 
         // Add in a check for the admin's signature
         match self.admin.key() == self.amm.admin {
             true => {
                 self.amm.fee = new_fee;
                 msg!("Fee Updated");
-                return Ok(())
+                return Ok(());
             }
             false => return Err(AmmError::NotSigner.into()),
         }
     }
-        
 }

@@ -2,19 +2,15 @@ use anchor_lang::prelude::*;
 
 use anchor_spl::{
     associated_token::AssociatedToken,
-    token_interface::{
-        Mint,
-        Token2022,
-        mint_to,
-        MintTo,
-        TokenAccount
-    },
+    token_interface::{mint_to, Mint, MintTo, Token2022, TokenAccount},
 };
-use fixed::types::I64F64;
-use fixed_sqrt::FixedSqrt;
 
-use crate::{Pool, RewardVault};
-use crate::constants::{POOL_AUTHORITY_SEED, REWARD_VAULT_SEED};
+use crate::{
+    constants::{POOL_AUTHORITY_SEED, REWARD_VAULT_SEED},
+    errors::AmmError,
+    math::{calculate_emissions, EmissionTarget},
+    Pool, RewardVault,
+};
 
 impl<'info> DepositLiquidity<'info> { 
 pub fn deposit_liquidity(
@@ -325,7 +321,7 @@ impl<'info> DepositRewards<'info> {
             &[bumps.mint_authority]
         ];
         let mint_signer_seeds = &[&seeds[..]];
-    
+
         // minting the correct amount of tokens to the reward vault for token a
         self.mint_token(
             self.mint_a.to_account_info(),
@@ -335,7 +331,7 @@ impl<'info> DepositRewards<'info> {
             mint_signer_seeds,
             self.token_program.to_account_info(),
         )?;
-    
+
         // minting the correct amount of tokens to the pool for token b
         self.mint_token(
             self.mint_b.to_account_info(),
@@ -350,17 +346,14 @@ impl<'info> DepositRewards<'info> {
     }
 
     pub fn mint_token(
-
         &mut self,
-        mint: AccountInfo<'info>, 
-        to: AccountInfo<'info>, 
-        authority: AccountInfo<'info>, 
-        amount: u64, 
-        signer_seeds: &[&[&[u8]]; 1] , 
-        token_program: AccountInfo<'info>
-
+        mint: AccountInfo<'info>,
+        to: AccountInfo<'info>,
+        authority: AccountInfo<'info>,
+        amount: u64,
+        signer_seeds: &[&[&[u8]]; 1],
+        token_program: AccountInfo<'info>,
     ) -> Result<()> {
-
         mint_to(
             CpiContext::new_with_signer(
                 token_program,
@@ -369,13 +362,12 @@ impl<'info> DepositRewards<'info> {
                     to,
                     authority,
                 },
-                signer_seeds
+                signer_seeds,
             ),
             amount,
         )?;
 
         Ok(())
-
     }
 }
 

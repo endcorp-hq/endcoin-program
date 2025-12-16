@@ -1,16 +1,13 @@
 use anchor_lang::prelude::*;
 
-use anchor_spl::{
-    associated_token::AssociatedToken,
-    token_interface::{
-        Mint,
-        Token2022, TokenAccount
-    },
-};
 use crate::{
-    constants::{POOL_AUTHORITY_SEED, AMM_SEED},
+    constants::{AMM_SEED, POOL_AUTHORITY_SEED},
     errors::*,
     state::{Amm, Pool},
+};
+use anchor_spl::{
+    associated_token::AssociatedToken,
+    token_interface::{Mint, Token2022, TokenAccount},
 };
 
 impl<'info> CreatePool<'info> {
@@ -21,7 +18,6 @@ impl<'info> CreatePool<'info> {
         pool.mint_b = self.mint_b.key();
 
         Ok(())
-
     }
 }
 
@@ -30,8 +26,6 @@ impl<'info> CreateTokenAccounts<'info> {
         Ok(())
     }
 }
-
-
 
 #[derive(Accounts)]
 pub struct CreatePool<'info> {
@@ -101,7 +95,7 @@ pub struct CreateTokenAccounts<'info> {
         associated_token::authority = pool_authority,
     )]
     pub pool_account_b: Box<InterfaceAccount<'info, TokenAccount>>,
-    
+
     /// CHECK: Read only authority
     #[account(
         seeds = [
@@ -132,5 +126,4 @@ pub struct CreateTokenAccounts<'info> {
     pub system_program: Program<'info, System>,
     pub associated_token_program: Program<'info, AssociatedToken>,
     pub token_program: Program<'info, Token2022>,
-
 }

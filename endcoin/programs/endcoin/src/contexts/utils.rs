@@ -1,13 +1,8 @@
 use anchor_lang::{
-    require,
     prelude::Result,
     solana_program::{
-        account_info::AccountInfo,
-        program::invoke,
-        pubkey::Pubkey,
-        rent::Rent,
-        system_instruction::transfer,
-        sysvar::Sysvar,
+        account_info::AccountInfo, program::invoke, pubkey::Pubkey, rent::Rent,
+        system_instruction::transfer, sysvar::Sysvar,
     },
     Lamports,
 };
@@ -19,11 +14,6 @@ use anchor_spl::token_interface::spl_token_2022::{
 use bytemuck::Pod;
 
 use spl_tlv_account_resolution::{account::ExtraAccountMeta, state::ExtraAccountMetaList};
-
-use crate::{
-    constants::FEE_BPS_DENOMINATOR,
-    errors::AmmError
-};
 
 pub fn update_account_lamports_to_minimum_balance<'info>(
     account: AccountInfo<'info>,
@@ -47,7 +37,6 @@ pub fn get_mint_extension_data<T: Extension + Pod>(account: &mut AccountInfo) ->
     Ok(extension_data)
 }
 
-
 pub fn get_meta_list(approve_account: Option<Pubkey>) -> Vec<ExtraAccountMeta> {
     if let Some(approve_account) = approve_account {
         return vec![ExtraAccountMeta {
@@ -63,17 +52,4 @@ pub fn get_meta_list(approve_account: Option<Pubkey>) -> Vec<ExtraAccountMeta> {
 pub fn get_meta_list_size(approve_account: Option<Pubkey>) -> usize {
     // safe because it's either 0 or 1
     ExtraAccountMetaList::size_of(get_meta_list(approve_account).len()).unwrap()
-}
-
-
-pub fn compute_fee_bps(amount_lamports: u64, fee_bps: u16) -> Result<u64> {
-    require!(fee_bps as u64 <= 10_000, AmmError::InvalidFeeBps);
-    if fee_bps == 0 || amount_lamports == 0 {
-        return Ok(0);
-    }
-    let numerator = (amount_lamports as u128)
-        .checked_mul(fee_bps as u128)
-        .ok_or(AmmError::ArithmeticOverflow)?;
-    let fee = numerator / FEE_BPS_DENOMINATOR as u128; // deterministic round-down
-    u64::try_from(fee).map_err(|_| AmmError::ArithmeticOverflow.into())
 }

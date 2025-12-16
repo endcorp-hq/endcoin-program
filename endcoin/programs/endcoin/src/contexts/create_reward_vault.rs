@@ -1,43 +1,48 @@
+use crate::{
+    constants::{AMM_SEED, REWARD_VAULT_SEED},
+    errors::AmmError,
+    state::{Pool, RewardVault},
+    Amm,
+};
 use anchor_lang::prelude::*;
 use anchor_spl::{
     associated_token::AssociatedToken,
-    token_interface::{
-        Mint,
-        Token2022, TokenAccount
-    },
-};
-use crate::{
-    constants::{REWARD_VAULT_SEED, AMM_SEED}, errors::AmmError, state::{Pool, RewardVault},
-    Amm,
+    token_interface::{Mint, Token2022, TokenAccount},
 };
 
 impl<'info> CreateRewardVault<'info> {
     pub fn create_reward_vault(&mut self, bumps: &CreateRewardVaultBumps) -> Result<()> {
-
-        require!(self.mint_a.key() != self.mint_b.key(), AmmError::InvalidMint);
-        require!(self.payer.key() == self.amm.admin, 
-        AmmError::UnauthorizedAdmin);
+        require!(
+            self.mint_a.key() != self.mint_b.key(),
+            AmmError::InvalidMint
+        );
+        require!(
+            self.payer.key() == self.amm.admin,
+            AmmError::UnauthorizedAdmin
+        );
         let reward_vault = &mut self.reward_vault;
 
-        reward_vault.set_inner(
-            RewardVault {
-                pool: self.pool.key(),
-                mint_a: self.mint_a.key(),
-                mint_b: self.mint_b.key(),
-                bump: bumps.reward_vault,
-            }
-        );
+        reward_vault.set_inner(RewardVault {
+            pool: self.pool.key(),
+            mint_a: self.mint_a.key(),
+            mint_b: self.mint_b.key(),
+            bump: bumps.reward_vault,
+        });
 
         Ok(())
-
     }
 }
 
 impl<'info> CreateRewardTokenAccounts<'info> {
     pub fn create_reward_token_accounts(&mut self) -> Result<()> {
-
-        require!(self.mint_a.key() != self.mint_b.key(), AmmError::InvalidMint);
-        require!(self.payer.key() == self.amm.admin, AmmError::UnauthorizedAdmin);
+        require!(
+            self.mint_a.key() != self.mint_b.key(),
+            AmmError::InvalidMint
+        );
+        require!(
+            self.payer.key() == self.amm.admin,
+            AmmError::UnauthorizedAdmin
+        );
 
         Ok(())
     }
@@ -45,7 +50,6 @@ impl<'info> CreateRewardTokenAccounts<'info> {
 
 #[derive(Accounts)]
 pub struct CreateRewardVault<'info> {
-
     #[account(
         init,
         payer = payer,
@@ -152,5 +156,4 @@ pub struct CreateRewardTokenAccounts<'info> {
     pub system_program: Program<'info, System>,
     pub associated_token_program: Program<'info, AssociatedToken>,
     pub token_program: Program<'info, Token2022>,
-
 }

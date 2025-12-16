@@ -1,20 +1,14 @@
 use anchor_lang::prelude::*;
 
+use crate::AmmError;
+use crate::{constants::REWARD_VAULT_SEED, state::Pool, RewardVault};
 use anchor_spl::{
     associated_token::AssociatedToken,
-    token_interface::{
-        Mint,
-        Token2022, TokenAccount
-    },
+    token_interface::{Mint, Token2022, TokenAccount},
 };
-use crate::{
-    constants::REWARD_VAULT_SEED, state:: Pool, RewardVault
-};
-use crate::AmmError;
 
 impl<'info> ClaimReward<'info> {
     pub fn claim_reward(&mut self, claimer: Pubkey, amount_a: u64, amount_b: u64) -> Result<()> {
-
         // check the payer is signer
         if self.claimer.key != &claimer {
             return Err(AmmError::UnauthorizedClaimer.into());
@@ -38,7 +32,7 @@ impl<'info> ClaimReward<'info> {
             REWARD_VAULT_SEED,
             &[self.reward_vault.bump],
         ];
-        
+
         let signer_seeds = &[&seeds[..]];
 
         // Transfer tokens from taker to initializer
@@ -48,19 +42,13 @@ impl<'info> ClaimReward<'info> {
             to: self.to_mint_a_account.to_account_info().clone(),
             authority: self.reward_vault.to_account_info().clone(),
         };
-        
+
         // coconuts to mints
         anchor_spl::token_interface::transfer_checked(
-            CpiContext::new_with_signer(
-                cpi_program_a,
-                cpi_accounts_a,
-                signer_seeds
-            ),
-                amount_a,
-                6
-            )?;
-
-
+            CpiContext::new_with_signer(cpi_program_a, cpi_accounts_a, signer_seeds),
+            amount_a,
+            6,
+        )?;
 
         // Transfer tokens from taker to initializer
         let cpi_accounts_b = anchor_spl::token_interface::TransferChecked {
@@ -69,27 +57,21 @@ impl<'info> ClaimReward<'info> {
             to: self.to_mint_b_account.to_account_info().clone(),
             authority: self.reward_vault.to_account_info().clone(),
         };
-        
+
         let cpi_program_b = self.token_program.to_account_info();
 
         anchor_spl::token_interface::transfer_checked(
-            CpiContext::new_with_signer(
-                cpi_program_b,
-                cpi_accounts_b,
-                signer_seeds
-            ),
-                amount_b,
-                6
-            )?;
+            CpiContext::new_with_signer(cpi_program_b, cpi_accounts_b, signer_seeds),
+            amount_b,
+            6,
+        )?;
 
         Ok(())
     }
 }
 
-
 #[derive(Accounts)]
 pub struct ClaimReward<'info> {
-
     #[account(
         seeds = [
             pool.amm.as_ref(),
@@ -101,20 +83,20 @@ pub struct ClaimReward<'info> {
     pub pool: Box<Account<'info, Pool>>,
 
     #[account(mut)]
-    claimer: Signer<'info>,    
+    claimer: Signer<'info>,
 
     #[account(
-        init_if_needed, 
+        init_if_needed,
         payer = claimer,
-        associated_token::mint = mint_a, 
+        associated_token::mint = mint_a,
         associated_token::authority = claimer
     )]
     pub to_mint_a_account: Box<InterfaceAccount<'info, TokenAccount>>,
 
     #[account(
-        init_if_needed, 
+        init_if_needed,
         payer = claimer,
-        associated_token::mint = mint_b, 
+        associated_token::mint = mint_b,
         associated_token::authority = claimer
     )]
     pub to_mint_b_account: Box<InterfaceAccount<'info, TokenAccount>>,

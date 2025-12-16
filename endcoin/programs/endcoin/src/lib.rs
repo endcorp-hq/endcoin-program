@@ -3,12 +3,12 @@ use anchor_lang::prelude::*;
 pub use errors::*;
 pub mod errors;
 pub use state::*;
-pub mod state;
 mod constants;
+mod math;
+pub mod state;
 
 pub use contexts::*;
 pub mod contexts;
-
 
 declare_id!("B6tCcVMPoQYtznwRNLAoKnwMQy95c73jg8AQBp3v9dY2");
 
@@ -36,69 +36,52 @@ pub mod endcoin {
         Ok(())
     }
 
-    pub fn create_pool(
-        ctx: Context<CreatePool>
-    ) -> Result<()> {
+    pub fn create_pool(ctx: Context<CreatePool>) -> Result<()> {
         ctx.accounts.create_pool()?;
         Ok(())
     }
-    pub fn create_token_accounts(
-        ctx: Context<CreateTokenAccounts>
-    ) -> Result<()> {
+    pub fn create_token_accounts(ctx: Context<CreateTokenAccounts>) -> Result<()> {
         ctx.accounts.create_token_accounts()?;
         Ok(())
     }
-    pub fn create_reward_vault(
-        ctx: Context<CreateRewardVault>
-    ) -> Result<()> {
+    pub fn create_reward_vault(ctx: Context<CreateRewardVault>) -> Result<()> {
         ctx.accounts.create_reward_vault(&ctx.bumps)?;
         Ok(())
     }
-    pub fn create_reward_token_accounts(
-        ctx: Context<CreateRewardTokenAccounts>
-    ) -> Result<()> {
+    pub fn create_reward_token_accounts(ctx: Context<CreateRewardTokenAccounts>) -> Result<()> {
         ctx.accounts.create_reward_token_accounts()?;
         Ok(())
     }
 
-    // pub fn create_endcoin(ctx: Context<CreateEndcoin>) -> Result<()>
-    // {
-    //     ctx.accounts.initialize_endcoin()?;
-    //     Ok(())
-    // }
-    // pub fn create_gaiacoin(ctx: Context<CreateGaiacoin>) -> Result<()>
-    // {
-    //     ctx.accounts.initialize_gaiacoin()?;
-    //     Ok(())
-    // }
-
-    pub fn deposit_liquidity(
-        ctx: Context<DepositLiquidity>, mean_temp: f64
-    ) -> Result<()> {
+    pub fn deposit_liquidity(ctx: Context<DepositLiquidity>, mean_temp: f64) -> Result<()> {
         ctx.accounts.deposit_liquidity(&ctx.bumps, mean_temp)
     }
 
-    pub fn deposit_rewards(
-        ctx: Context<DepositRewards>,
-        mean_temp: f64
-    ) -> Result<()> {
+    pub fn deposit_rewards(ctx: Context<DepositRewards>, mean_temp: f64) -> Result<()> {
         ctx.accounts.deposit_rewards(&ctx.bumps, mean_temp)
     }
 
     pub fn claim_reward(
         ctx: Context<ClaimReward>,
-        claimer: Pubkey, amount_a: u64, amount_b: u64
+        claimer: Pubkey,
+        amount_a: u64,
+        amount_b: u64,
     ) -> Result<()> {
         ctx.accounts.claim_reward(claimer, amount_a, amount_b)
     }
-    
+
     pub fn swap_exact_tokens_for_tokens(
         ctx: Context<SwapExactTokensForTokens>,
         swap_a: bool,
         input_amount: u64,
         min_output_amount: u64,
     ) -> Result<()> {
-        ctx.accounts.swap_exact_tokens_for_tokens(swap_a, input_amount, min_output_amount, &ctx.bumps)
+        ctx.accounts.swap_exact_tokens_for_tokens(
+            swap_a,
+            input_amount,
+            min_output_amount,
+            &ctx.bumps,
+        )
     }
 
     pub fn pull_feed(ctx: Context<PullFeed>) -> Result<()> {
@@ -110,24 +93,4 @@ pub mod endcoin {
         ctx.accounts.update_timestamp()?;
         Ok(())
     }
-
-    // pub fn create_mint_account(
-    //     ctx: Context<CreateMintAccount>,
-    //     args: CreateMintAccountArgs,
-    // ) -> Result<()> {
-    //     instructions::handler(ctx, args)
-    // }
-
-    // pub fn check_mint_extensions_constraints(
-    //     _ctx: Context<CheckMintExtensionConstraints>,
-    // ) -> Result<()> {
-    //     Ok(())
-    // }
-
-
-
-
-
-
-
 }

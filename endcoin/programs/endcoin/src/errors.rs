@@ -19,7 +19,7 @@ pub enum AmmError {
 
     #[msg("AMM Already Created")]
     AlreadyCreated,
-    
+
     #[msg("Unauthorized Admin account used.")]
     UnauthorizedAdmin,
 
@@ -36,7 +36,7 @@ pub enum AmmError {
 
     #[msg("Bump Error")]
     BumpError,
-    
+
     #[msg("Overflow Error")]
     Overflow,
 
@@ -69,12 +69,12 @@ pub enum MetadataError {
 #[error_code]
 #[derive(Eq, PartialEq)]
 pub enum SwitchboardClientError {
-#[msg("Not a valid Switchboard account")]
-InvalidSwitchboardAccount,
-#[msg("Switchboard feed has not been updated in 5 minutes")]
-StaleFeed,
-#[msg("Switchboard feed exceeded provided confidence interval")]
-ConfidenceIntervalExceeded,
-#[msg("History buffer mismatch")]
-InvalidHistoryBuffer,
+    #[msg("Not a valid Switchboard account")]
+    InvalidSwitchboardAccount,
+    #[msg("Switchboard feed has not been updated in 5 minutes")]
+    StaleFeed,
+    #[msg("Switchboard feed exceeded provided confidence interval")]
+    ConfidenceIntervalExceeded,
+    #[msg("History buffer mismatch")]
+    InvalidHistoryBuffer,
 }
