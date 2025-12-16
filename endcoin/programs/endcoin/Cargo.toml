@@ -10,14 +10,13 @@ crate-type = ["cdylib", "lib"]
 name = "endcoin"
 
 [features]
-default = []
-no-entrypoint = []
-no-log-ix-name = []
-cpi = ["no-entrypoint"]
-idl-build = ["anchor-lang/idl-build", "anchor-spl/idl-build"]
 anchor-debug = []
 custom-heap = []
 custom-panic = []
+default = []
+idl-build = ["anchor-lang/idl-build", "anchor-spl/idl-build"]
+no-entrypoint = []
+no-log-ix-name = []
 
 [dependencies]
 anchor-lang = { version = "0.32.1", features = ["init-if-needed"] }
