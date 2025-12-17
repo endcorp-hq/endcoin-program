@@ -1,0 +1,8 @@
+[fuzz.metrics]
+enabled = true
+
+
+[[fuzz.programs]]
+address = "B6tCcVMPoQYtznwRNLAoKnwMQy95c73jg8AQBp3v9dY2"
+program = "../target/deploy/endcoin.so"
+ 
