@@ -47,7 +47,7 @@ impl<'info> ClaimReward<'info> {
         anchor_spl::token_interface::transfer_checked(
             CpiContext::new_with_signer(cpi_program_a, cpi_accounts_a, signer_seeds),
             amount_a,
-            6,
+            self.mint_a.decimals,
         )?;
 
         // Transfer tokens from taker to initializer
@@ -63,7 +63,7 @@ impl<'info> ClaimReward<'info> {
         anchor_spl::token_interface::transfer_checked(
             CpiContext::new_with_signer(cpi_program_b, cpi_accounts_b, signer_seeds),
             amount_b,
-            6,
+            self.mint_b.decimals,
         )?;
 
         Ok(())
