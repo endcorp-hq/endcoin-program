@@ -29,3 +29,7 @@ Climate disaster will destroy the economy, and much more.
 
 
 Using satellites and memes we are building a system that solves this problem by treating the health of the earth as a public good funded by a native economic protocol.
+
+## Development (Localnet)
+
+For the Surfpool + local test workflow (deploy runbook, subgraphs, init/simulate/smoke/loadtest), see `endcoin/runbooks/README.md`.

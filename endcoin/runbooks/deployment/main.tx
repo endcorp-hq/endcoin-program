@@ -1,0 +1,66 @@
+################################################################
+# Manage endcoin deployment through Crypto Infrastructure as Code
+################################################################
+
+addon "svm" {
+    rpc_api_url = input.rpc_api_url
+    network_id = input.network_id
+}
+
+action "deploy_endcoin" "svm::deploy_program" {
+    description = "Deploy endcoin program"
+    program = svm::get_program_from_anchor_project("endcoin") 
+    authority = signer.authority
+    payer = signer.payer
+    // On Surfpool Simnet, program deploys can occasionally fail during the final "broadcast and confirm"
+    // phase with `receiving on an empty and disconnected channel`. For local dev we use the Simnet
+    // cheatcode deploy path to make deployment deterministic.
+    //
+    // This should remain `false` for devnet/mainnet deployments so the runbook matches real-world behavior.
+    instant_surfnet_deployment = input.instant_surfnet_deployment
+}
+
+action "endcoin_swap_event_subgraph" "svm::deploy_subgraph" {
+    program_id = action.deploy_endcoin.program_id
+    program_idl = action.deploy_endcoin.program_idl
+    block_height = action.deploy_endcoin.block_height
+    event {
+        name = "SwapEvent"
+    }
+}
+
+action "endcoin_claim_reward_event_subgraph" "svm::deploy_subgraph" {
+    program_id = action.deploy_endcoin.program_id
+    program_idl = action.deploy_endcoin.program_idl
+    block_height = action.deploy_endcoin.block_height
+    event {
+        name = "ClaimRewardEvent"
+    }
+}
+
+action "endcoin_deposit_liquidity_event_subgraph" "svm::deploy_subgraph" {
+    program_id = action.deploy_endcoin.program_id
+    program_idl = action.deploy_endcoin.program_idl
+    block_height = action.deploy_endcoin.block_height
+    event {
+        name = "DepositLiquidityEvent"
+    }
+}
+
+action "endcoin_deposit_rewards_event_subgraph" "svm::deploy_subgraph" {
+    program_id = action.deploy_endcoin.program_id
+    program_idl = action.deploy_endcoin.program_idl
+    block_height = action.deploy_endcoin.block_height
+    event {
+        name = "DepositRewardsEvent"
+    }
+}
+
+action "endcoin_sst_updated_event_subgraph" "svm::deploy_subgraph" {
+    program_id = action.deploy_endcoin.program_id
+    program_idl = action.deploy_endcoin.program_idl
+    block_height = action.deploy_endcoin.block_height
+    event {
+        name = "SstUpdatedEvent"
+    }
+}

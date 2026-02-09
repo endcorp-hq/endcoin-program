@@ -26,7 +26,7 @@ pub mod endcoin {
 
     /// Returns the program ID for endcoin
     pub fn program_id() -> Pubkey {
-        pubkey!("B6tCcVMPoQYtznwRNLAoKnwMQy95c73jg8AQBp3v9dY2")
+        pubkey!("g9pxtrXmWHss8KWNtakwyMpPbnGnD1TCogYv9NDUcB8")
     }
 
     // ------------------------------------------------------------------------

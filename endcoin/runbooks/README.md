@@ -1,0 +1,190 @@
+# endcoin Runbooks
+
+[![Surfpool](https://img.shields.io/badge/Operated%20with-Surfpool-gree?labelColor=gray)](https://surfpool.run)
+
+## Available Runbooks
+
+### deployment
+Deploy programs
+
+## Getting Started
+
+This repository is using [Surfpool](https://surfpool.run) as a part of its development workflow.
+
+Surfpool provides three major upgrades to the Solana development experience:
+- **Surfnet**: A local validator that runs on your machine, allowing you fork mainnet on the fly so that you always use the latest chain data when testing your programs.
+- **Runbooks**: Bringing the devops best practice of `infrastructure as code` to Solana, Runbooks allow you to have secure, reproducible, and composable scripts for managing on-chain operations & deployments.
+- **Surfpool Studio**: An all-local Web UI that gives new levels of introspection into your transactions.
+
+### Installation
+
+Install pre-built binaries:
+
+```console
+# macOS (Homebrew)
+brew install txtx/taps/surfpool
+
+# Updating surfpool for Homebrew users
+brew tap txtx/taps
+brew reinstall surfpool
+
+# Linux (Snap Store)
+snap install surfpool
+```
+
+Install from source:
+
+```console
+# Clone repo
+git clone https://github.com/txtx/surfpool.git
+
+# Set repo as current directory
+cd surfpool
+
+# Build
+cargo surfpool-install
+```
+
+### Start a Surfnet
+
+```console
+$ surfpool start
+```
+
+Note: `txtx.yml` sets `instant_surfnet_deployment: true` for the `localnet` environment so program deployments don’t fail intermittently during the final “broadcast and confirm” phase on Simnet. Set it to `false` if you specifically want local deployments to use real transactions.
+
+## Localnet Workflow
+
+This is the recommended “standard Solana dev” local loop:
+
+1. Start the validator + Studio (`surfpool start`).
+2. Deploy the program + subgraphs (`surfpool run deployment --env localnet`), or use `surfpool start --watch` to auto-redeploy on `.so` changes.
+3. Initialize program state and run simulations/load tests (`yarn localnet:*`).
+
+### One-Time Setup
+
+```console
+cd endcoin
+yarn install
+export ANCHOR_PROVIDER_URL=http://127.0.0.1:8899
+export ANCHOR_WALLET=~/.config/solana/id.json
+```
+
+### Build + Deploy
+
+If you changed the program, rebuild the IDL/`*.so` first:
+
+```console
+cd endcoin
+anchor build
+```
+
+Then deploy to your running Surfnet:
+
+```console
+cd endcoin
+surfpool run deployment --env localnet --force
+```
+
+`deployment` also deploys Surfpool subgraphs for Anchor events (swap/rewards/liquidity/SST updates), using the program id, IDL, and deploy slot from the deploy action.
+
+## Localnet Test Suite (TypeScript)
+
+These scripts assume `surfpool start` is already running (RPC `http://127.0.0.1:8899`) and the program is deployed.
+
+If you pulled new program changes (e.g. SST updates), restart/redeploy your Surfnet so the deployed program matches the client scripts.
+If you see `ConstraintSeeds` errors, your deployed program/IDL and the local client scripts are out of sync; restart `surfpool start --watch` (or rebuild with `anchor build`) and re-run `yarn localnet:init`.
+
+```console
+cd endcoin
+yarn install
+export ANCHOR_PROVIDER_URL=http://127.0.0.1:8899
+export ANCHOR_WALLET=~/.config/solana/id.json
+
+# Create Token-2022 mints + all required program accounts (idempotent)
+yarn localnet:init
+
+# Emissions (depositLiquidity/depositRewards) → claim → swap
+yarn localnet:simulate
+
+# Mocha smoke test (same flow, with assertions)
+yarn localnet:smoke
+
+# Load test (swaps + claims + emissions + temperature updates)
+ITERATIONS=2000 TRADERS=25 yarn localnet:loadtest
+```
+
+`yarn localnet:init` creates/updates local state in `endcoin/.localnet/` (ignored by git) so your mint keypairs stay stable across runs.
+
+The load test writes `endcoin/.localnet/index-accounts.json` containing the key token accounts (pool, reward vault, and trader ATAs) you can add to Surfpool Studio account indexers to monitor balances over time.
+
+If you hit transient send errors under heavy load, rerun with more diagnostics:
+- `VERBOSE=1` to print `SendTransactionError.getLogs()` output
+- `SKIP_PREFLIGHT=0` to enable simulation (slower, more debug info)
+
+Useful loadtest knobs:
+- `SEED_TRADERS=1` (default) funds traders with Endcoin via reward claims
+- `INITIAL_A=...` / `INITIAL_B=...` sets how much Endcoin/Gaiacoin each trader starts with (base units)
+- `SWAP_MODE=ab|ba|alternate|random` controls swap direction mix (default `ab`)
+- `THROTTLE_MS=...` adds delay per iteration to reduce validator pressure
+- `DEPOSIT_LIQ_EVERY=...` controls how often the pool is replenished during one-sided A→B traffic
+- `MAX_RETRIES=...` retries tx send more aggressively under load
+
+For realistic “many users swapping both ways”, start with:
+
+```console
+ITERATIONS=20000 TRADERS=100 SWAP_MODE=random THROTTLE_MS=10 yarn localnet:loadtest
+```
+
+To correlate balances with activity, use both:
+- The subgraphs (decoded events) deployed by the `deployment` runbook
+- The account indexer list in `endcoin/.localnet/index-accounts.json` (generated by `yarn localnet:loadtest`)
+
+### Surfpool Studio (Indexing)
+
+- Studio runs at `http://127.0.0.1:18488` by default (see your `surfpool start` output if you changed ports).
+- Use the Subgraphs view to enable the event subgraphs deployed by the `deployment` runbook.
+- Use the Accounts view to add account indexers; `endcoin/.localnet/index-accounts.json` includes the pool/reward accounts plus all trader ATAs to copy/paste.
+
+## Debugging / Recovery
+
+- If `svm::deploy_program` fails and Surfpool logs mention “program account is not executable”, restart `surfpool start` and rerun `surfpool run deployment --env localnet --force`.
+- If TypeScript fails with BigInt errors, ensure `endcoin/tsconfig.json` targets `es2020` (BigInt literals require ES2020+).
+- If you see seed/IDL mismatches (e.g. `ConstraintSeeds`), rebuild + redeploy (`anchor build` then `surfpool run deployment --env localnet --force`), then rerun `yarn localnet:init`.
+
+## Resources
+
+Access tutorials and documentation at [docs.surfpool.run](https://docs.surfpool.run) to understand Surfnets and the Runbook syntax, and to discover the powerful features of surfpool.
+
+Additionally, the [Visual Studio Code extension](https://marketplace.visualstudio.com/items?itemName=txtx.txtx) will make writing runbooks easier.
+
+Our [Surfpool 101 Series](https://www.youtube.com/playlist?list=PL0FMgRjJMRzO1FdunpMS-aUS4GNkgyr3T) is also a great place to start learning about Surfpool and its features:
+<a href="https://www.youtube.com/playlist?list=PL0FMgRjJMRzO1FdunpMS-aUS4GNkgyr3T">
+  <picture>
+    <source srcset="https://raw.githubusercontent.com/txtx/surfpool/main/doc/assets/youtube.png">
+    <img alt="Surfpool 101 series" style="max-width: 100%;">
+  </picture>
+</a>
+
+## Quickstart
+
+### List runbooks available in this repository
+```console
+$ surfpool ls
+Name                                    Description
+deployment                              Deploy programs
+```
+
+### Start a Surfnet, automatically executing the `deployment` runbook on program recompile:
+```console
+$ surfpool start --watch
+```
+
+### Execute an existing runbook
+```console
+$ surfpool run deployment
+```
+
+### Subgraphs (indexing)
+
+The `deployment` runbook deploys Surfpool subgraphs for Anchor events (swap/rewards/liquidity/SST updates). After running `surfpool run deployment` (or `surfpool start --watch`), open Surfpool Studio and enable the subgraphs to inspect decoded events over time.
