@@ -14,13 +14,22 @@ describe("localnet smoke (surfpool)", () => {
     const ctx = await ensureLocalnetInitialized();
     const { provider, program, payer, mintA, mintB, mintLiquidity, addresses } = ctx;
 
-    const meanTemp = 21;
+    await program.methods
+      .pullFeed()
+      .accountsStrict({
+        amm: addresses.amm,
+        sst: addresses.sst,
+        feed: addresses.oracleFeed,
+      })
+      .rpc();
 
     await program.methods
-      .depositLiquidity(meanTemp)
+      .depositLiquidity()
       .accountsStrict({
+        amm: addresses.amm,
         pool: addresses.pool,
         poolAuthority: addresses.poolAuthority,
+        sst: addresses.sst,
         payer: payer.publicKey,
         mintLiquidity: mintLiquidity.publicKey,
         mintA: mintA.publicKey,
@@ -41,10 +50,12 @@ describe("localnet smoke (surfpool)", () => {
       .rpc();
 
     await program.methods
-      .depositRewards(meanTemp)
+      .depositRewards()
       .accountsStrict({
+        amm: addresses.amm,
         rewardVault: addresses.rewardVault,
         pool: addresses.pool,
+        sst: addresses.sst,
         payer: payer.publicKey,
         mintA: mintA.publicKey,
         mintB: mintB.publicKey,
@@ -68,7 +79,7 @@ describe("localnet smoke (surfpool)", () => {
     const claimB = rewardAmountB.div(new anchor.BN(10));
 
     await program.methods
-      .claimReward(payer.publicKey, claimA, claimB)
+      .claimReward(claimA, claimB)
       .accountsStrict({
         pool: addresses.pool,
         claimer: payer.publicKey,
@@ -77,6 +88,7 @@ describe("localnet smoke (surfpool)", () => {
         mintA: mintA.publicKey,
         mintB: mintB.publicKey,
         rewardVault: addresses.rewardVault,
+        whitelistAuthority: payer.publicKey,
         rewardAccountA: addresses.rewardAccountA,
         rewardAccountB: addresses.rewardAccountB,
         tokenProgram: TOKEN_2022_PROGRAM_ID,

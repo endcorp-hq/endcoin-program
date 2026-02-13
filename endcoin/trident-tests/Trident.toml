@@ -3,6 +3,6 @@ enabled = true
 
 
 [[fuzz.programs]]
-address = "g9pxtrXmWHss8KWNtakwyMpPbnGnD1TCogYv9NDUcB8"
+address = "Fyg2zFo8HzsyHqeNE2DRabhHZCekwY42jTVjivTfT8HB"
 program = "../target/deploy/endcoin.so"
  

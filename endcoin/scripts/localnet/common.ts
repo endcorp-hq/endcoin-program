@@ -17,9 +17,13 @@ import {
   sendAndConfirmTransaction,
 } from "@solana/web3.js";
 import { existsSync, mkdirSync, readFileSync, writeFileSync } from "fs";
+import os from "os";
 import path from "path";
 
 export const DEFAULT_DECIMALS = 6;
+export const DEFAULT_ORACLE_FEED = new PublicKey(
+  process.env.SST_ORACLE_FEED ?? "GhCs7zhha7kTyt8EiaWaBT5DREt23GnoPnqa7AU4yv1y"
+);
 
 type StoredKeypair = number[];
 
@@ -37,6 +41,7 @@ export type LocalnetAddresses = {
   poolAuthority: PublicKey;
   rewardVault: PublicKey;
   sst: PublicKey;
+  oracleFeed: PublicKey;
   poolAccountA: PublicKey;
   poolAccountB: PublicKey;
   rewardAccountA: PublicKey;
@@ -85,17 +90,56 @@ function loadIdlFromDisk(): anchor.Idl {
   return raw as anchor.Idl;
 }
 
+function expandHome(filePath: string): string {
+  if (!filePath.startsWith("~")) return filePath;
+  return path.join(os.homedir(), filePath.slice(1));
+}
+
+function resolveWalletPath(): string {
+  const candidates = [
+    process.env.ANCHOR_WALLET,
+    "~/.config/solana/wba-wallet.json",
+    "~/.config/solana/id.json",
+  ]
+    .filter((entry): entry is string => !!entry)
+    .map(expandHome);
+
+  for (const candidate of candidates) {
+    if (existsSync(candidate)) return candidate;
+  }
+
+  throw new Error(
+    `Unable to locate a wallet keypair. Tried: ${candidates.join(", ")}`
+  );
+}
+
 export function getProviderAndProgram(): { provider: anchor.AnchorProvider; program: Program } {
-  const envProvider = anchor.AnchorProvider.env();
-  // Use at-least-confirmed commitment so helpers like `SendTransactionError.getLogs()`
-  // can fetch confirmed transactions for debugging.
-  const connection = new anchor.web3.Connection(envProvider.connection.rpcEndpoint, {
-    commitment: "confirmed",
-  });
-  const provider = new anchor.AnchorProvider(connection, envProvider.wallet, {
-    commitment: "confirmed",
-    preflightCommitment: "confirmed",
-  });
+  let provider: anchor.AnchorProvider;
+  try {
+    const envProvider = anchor.AnchorProvider.env();
+    // Use at-least-confirmed commitment so helpers like `SendTransactionError.getLogs()`
+    // can fetch confirmed transactions for debugging.
+    const connection = new anchor.web3.Connection(envProvider.connection.rpcEndpoint, {
+      commitment: "confirmed",
+    });
+    provider = new anchor.AnchorProvider(connection, envProvider.wallet, {
+      commitment: "confirmed",
+      preflightCommitment: "confirmed",
+    });
+  } catch {
+    const rpcEndpoint = process.env.ANCHOR_PROVIDER_URL ?? "http://127.0.0.1:8899";
+    const walletPath = resolveWalletPath();
+    const secretKey = Uint8Array.from(JSON.parse(readFileSync(walletPath, "utf8")));
+    const wallet = new anchor.Wallet(anchor.web3.Keypair.fromSecretKey(secretKey));
+    const connection = new anchor.web3.Connection(rpcEndpoint, {
+      commitment: "confirmed",
+    });
+    provider = new anchor.AnchorProvider(connection, wallet, {
+      commitment: "confirmed",
+      preflightCommitment: "confirmed",
+    });
+  }
+
   anchor.setProvider(provider);
   // Standard practice for scripts: load the built IDL from disk so it matches what was just deployed.
   const idl = loadIdlFromDisk();
@@ -125,7 +169,6 @@ export async function maybeAirdropLocalnet(
 
 export function deriveAddresses(
   programId: PublicKey,
-  payer: PublicKey,
   mintA: PublicKey,
   mintB: PublicKey
 ): Omit<LocalnetAddresses, "poolAccountA" | "poolAccountB" | "rewardAccountA" | "rewardAccountB"> {
@@ -150,7 +193,7 @@ export function deriveAddresses(
     programId
   );
 
-  return { mintAuthority, amm, pool, poolAuthority, rewardVault, sst };
+  return { mintAuthority, amm, pool, poolAuthority, rewardVault, sst, oracleFeed: DEFAULT_ORACLE_FEED };
 }
 
 export function deriveTokenAddresses(
@@ -280,7 +323,7 @@ export async function ensureLocalnetInitialized(params?: {
   const mintB = keypairFromStored(state.mintB);
   const mintLiquidity = keypairFromStored(state.mintLiquidity);
 
-  const core = deriveAddresses(program.programId, payer.publicKey, mintA.publicKey, mintB.publicKey);
+  const core = deriveAddresses(program.programId, mintA.publicKey, mintB.publicKey);
   const tokenAccounts = deriveTokenAddresses(mintA.publicKey, mintB.publicKey, core.poolAuthority, core.rewardVault);
   const addresses: LocalnetAddresses = { ...core, ...tokenAccounts };
 
@@ -350,11 +393,12 @@ export async function ensureLocalnetInitialized(params?: {
 
   if (!(await accountExists(provider.connection, addresses.sst))) {
     await program.methods
-      .createSst()
+      .createSst(addresses.oracleFeed)
       // Cast to `any` so this script remains runnable even if `target/types` hasn't been regenerated yet.
       .accountsStrict({
         amm: addresses.amm,
         sst: addresses.sst,
+        admin: payer.publicKey,
         payer: payer.publicKey,
         systemProgram: SystemProgram.programId,
       } as any)
@@ -363,7 +407,7 @@ export async function ensureLocalnetInitialized(params?: {
 
   if (!(await accountExists(provider.connection, addresses.rewardVault))) {
     await program.methods
-      .createRewardVault()
+      .createRewardVault(payer.publicKey)
       .accountsStrict({
         rewardVault: addresses.rewardVault,
         pool: addresses.pool,

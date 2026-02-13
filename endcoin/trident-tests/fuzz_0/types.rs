@@ -26,7 +26,7 @@ pub mod endcoin {
 
     /// Returns the program ID for endcoin
     pub fn program_id() -> Pubkey {
-        pubkey!("g9pxtrXmWHss8KWNtakwyMpPbnGnD1TCogYv9NDUcB8")
+        pubkey!("Fyg2zFo8HzsyHqeNE2DRabhHZCekwY42jTVjivTfT8HB")
     }
 
     // ------------------------------------------------------------------------
@@ -61,6 +61,8 @@ pub mod endcoin {
 
         pub reward_vault: AccountMeta,
 
+        pub whitelist_authority: AccountMeta,
+
         pub reward_account_a: AccountMeta,
 
         pub reward_account_b: AccountMeta,
@@ -89,6 +91,8 @@ pub mod endcoin {
 
         pub reward_vault: Pubkey,
 
+        pub whitelist_authority: Pubkey,
+
         pub reward_account_a: Pubkey,
 
         pub reward_account_b: Pubkey,
@@ -110,6 +114,8 @@ pub mod endcoin {
 
             reward_vault: Pubkey,
 
+            whitelist_authority: Pubkey,
+
             reward_account_a: Pubkey,
 
             reward_account_b: Pubkey,
@@ -129,6 +135,8 @@ pub mod endcoin {
 
                 reward_vault,
 
+                whitelist_authority,
+
                 reward_account_a,
 
                 reward_account_b,
@@ -139,22 +147,14 @@ pub mod endcoin {
     /// Instruction data for ClaimReward
     #[derive(Debug, BorshDeserialize, BorshSerialize, Clone)]
     pub struct ClaimRewardInstructionData {
-        pub claimer: Pubkey,
-
         pub amount_a: u64,
 
         pub amount_b: u64,
     }
 
     impl ClaimRewardInstructionData {
-        pub fn new(claimer: Pubkey, amount_a: u64, amount_b: u64) -> Self {
-            Self {
-                claimer,
-
-                amount_a,
-
-                amount_b,
-            }
+        pub fn new(amount_a: u64, amount_b: u64) -> Self {
+            Self { amount_a, amount_b }
         }
     }
 
@@ -186,6 +186,9 @@ pub mod endcoin {
             self.accounts.mint_b = AccountMeta::new(accounts.mint_b, false);
 
             self.accounts.reward_vault = AccountMeta::new_readonly(accounts.reward_vault, false);
+
+            self.accounts.whitelist_authority =
+                AccountMeta::new_readonly(accounts.whitelist_authority, true);
 
             self.accounts.reward_account_a = AccountMeta::new(accounts.reward_account_a, false);
 
@@ -228,6 +231,8 @@ pub mod endcoin {
             metas.push(self.accounts.mint_b.clone());
 
             metas.push(self.accounts.reward_vault.clone());
+
+            metas.push(self.accounts.whitelist_authority.clone());
 
             metas.push(self.accounts.reward_account_a.clone());
 
@@ -834,11 +839,15 @@ pub mod endcoin {
 
     /// Instruction data for CreateRewardVault
     #[derive(Debug, BorshDeserialize, BorshSerialize, Clone)]
-    pub struct CreateRewardVaultInstructionData {}
+    pub struct CreateRewardVaultInstructionData {
+        pub whitelist_authority: Pubkey,
+    }
 
     impl CreateRewardVaultInstructionData {
-        pub fn new() -> Self {
-            Self {}
+        pub fn new(whitelist_authority: Pubkey) -> Self {
+            Self {
+                whitelist_authority,
+            }
         }
     }
 
@@ -940,7 +949,11 @@ pub mod endcoin {
     /// Account metadata for CreateSst instruction
     #[derive(Debug, Clone, Default)]
     pub struct CreateSstInstructionAccountMetas {
+        pub amm: AccountMeta,
+
         pub sst: AccountMeta,
+
+        pub admin: AccountMeta,
 
         pub payer: AccountMeta,
 
@@ -950,24 +963,38 @@ pub mod endcoin {
     /// Account pubkeys for CreateSst instruction
     #[derive(Debug, Clone)]
     pub struct CreateSstInstructionAccounts {
+        pub amm: Pubkey,
+
         pub sst: Pubkey,
+
+        pub admin: Pubkey,
 
         pub payer: Pubkey,
     }
 
     impl CreateSstInstructionAccounts {
-        pub fn new(sst: Pubkey, payer: Pubkey) -> Self {
-            Self { sst, payer }
+        pub fn new(amm: Pubkey, sst: Pubkey, admin: Pubkey, payer: Pubkey) -> Self {
+            Self {
+                amm,
+
+                sst,
+
+                admin,
+
+                payer,
+            }
         }
     }
 
     /// Instruction data for CreateSst
     #[derive(Debug, BorshDeserialize, BorshSerialize, Clone)]
-    pub struct CreateSstInstructionData {}
+    pub struct CreateSstInstructionData {
+        pub oracle_feed: Pubkey,
+    }
 
     impl CreateSstInstructionData {
-        pub fn new() -> Self {
-            Self {}
+        pub fn new(oracle_feed: Pubkey) -> Self {
+            Self { oracle_feed }
         }
     }
 
@@ -986,7 +1013,11 @@ pub mod endcoin {
         }
 
         pub fn accounts(mut self, accounts: CreateSstInstructionAccounts) -> Self {
+            self.accounts.amm = AccountMeta::new_readonly(accounts.amm, false);
+
             self.accounts.sst = AccountMeta::new(accounts.sst, false);
+
+            self.accounts.admin = AccountMeta::new(accounts.admin, true);
 
             self.accounts.payer = AccountMeta::new(accounts.payer, true);
 
@@ -1004,7 +1035,11 @@ pub mod endcoin {
         fn to_account_metas(&self) -> Vec<AccountMeta> {
             let mut metas = Vec::new();
 
+            metas.push(self.accounts.amm.clone());
+
             metas.push(self.accounts.sst.clone());
+
+            metas.push(self.accounts.admin.clone());
 
             metas.push(self.accounts.payer.clone());
 
@@ -1039,6 +1074,8 @@ pub mod endcoin {
     /// Account metadata for CreateTokenAccounts instruction
     #[derive(Debug, Clone, Default)]
     pub struct CreateTokenAccountsInstructionAccountMetas {
+        pub pool: AccountMeta,
+
         pub pool_account_a: AccountMeta,
 
         pub pool_account_b: AccountMeta,
@@ -1063,6 +1100,8 @@ pub mod endcoin {
     /// Account pubkeys for CreateTokenAccounts instruction
     #[derive(Debug, Clone)]
     pub struct CreateTokenAccountsInstructionAccounts {
+        pub pool: Pubkey,
+
         pub pool_account_a: Pubkey,
 
         pub pool_account_b: Pubkey,
@@ -1080,6 +1119,8 @@ pub mod endcoin {
 
     impl CreateTokenAccountsInstructionAccounts {
         pub fn new(
+            pool: Pubkey,
+
             pool_account_a: Pubkey,
 
             pool_account_b: Pubkey,
@@ -1095,6 +1136,8 @@ pub mod endcoin {
             payer: Pubkey,
         ) -> Self {
             Self {
+                pool,
+
                 pool_account_a,
 
                 pool_account_b,
@@ -1137,6 +1180,8 @@ pub mod endcoin {
         }
 
         pub fn accounts(mut self, accounts: CreateTokenAccountsInstructionAccounts) -> Self {
+            self.accounts.pool = AccountMeta::new_readonly(accounts.pool, false);
+
             self.accounts.pool_account_a = AccountMeta::new(accounts.pool_account_a, false);
 
             self.accounts.pool_account_b = AccountMeta::new(accounts.pool_account_b, false);
@@ -1175,6 +1220,8 @@ pub mod endcoin {
 
         fn to_account_metas(&self) -> Vec<AccountMeta> {
             let mut metas = Vec::new();
+
+            metas.push(self.accounts.pool.clone());
 
             metas.push(self.accounts.pool_account_a.clone());
 
@@ -1225,9 +1272,13 @@ pub mod endcoin {
     /// Account metadata for DepositLiquidity instruction
     #[derive(Debug, Clone, Default)]
     pub struct DepositLiquidityInstructionAccountMetas {
+        pub amm: AccountMeta,
+
         pub pool: AccountMeta,
 
         pub pool_authority: AccountMeta,
+
+        pub sst: AccountMeta,
 
         pub payer: AccountMeta,
 
@@ -1255,9 +1306,13 @@ pub mod endcoin {
     /// Account pubkeys for DepositLiquidity instruction
     #[derive(Debug, Clone)]
     pub struct DepositLiquidityInstructionAccounts {
+        pub amm: Pubkey,
+
         pub pool: Pubkey,
 
         pub pool_authority: Pubkey,
+
+        pub sst: Pubkey,
 
         pub payer: Pubkey,
 
@@ -1278,9 +1333,13 @@ pub mod endcoin {
 
     impl DepositLiquidityInstructionAccounts {
         pub fn new(
+            amm: Pubkey,
+
             pool: Pubkey,
 
             pool_authority: Pubkey,
+
+            sst: Pubkey,
 
             payer: Pubkey,
 
@@ -1299,9 +1358,13 @@ pub mod endcoin {
             mint_authority: Pubkey,
         ) -> Self {
             Self {
+                amm,
+
                 pool,
 
                 pool_authority,
+
+                sst,
 
                 payer,
 
@@ -1324,13 +1387,11 @@ pub mod endcoin {
 
     /// Instruction data for DepositLiquidity
     #[derive(Debug, BorshDeserialize, BorshSerialize, Clone)]
-    pub struct DepositLiquidityInstructionData {
-        pub mean_temp: f64,
-    }
+    pub struct DepositLiquidityInstructionData {}
 
     impl DepositLiquidityInstructionData {
-        pub fn new(mean_temp: f64) -> Self {
-            Self { mean_temp }
+        pub fn new() -> Self {
+            Self {}
         }
     }
 
@@ -1349,9 +1410,13 @@ pub mod endcoin {
         }
 
         pub fn accounts(mut self, accounts: DepositLiquidityInstructionAccounts) -> Self {
+            self.accounts.amm = AccountMeta::new_readonly(accounts.amm, false);
+
             self.accounts.pool = AccountMeta::new_readonly(accounts.pool, false);
 
             self.accounts.pool_authority = AccountMeta::new(accounts.pool_authority, false);
+
+            self.accounts.sst = AccountMeta::new_readonly(accounts.sst, false);
 
             self.accounts.payer = AccountMeta::new(accounts.payer, true);
 
@@ -1394,9 +1459,13 @@ pub mod endcoin {
         fn to_account_metas(&self) -> Vec<AccountMeta> {
             let mut metas = Vec::new();
 
+            metas.push(self.accounts.amm.clone());
+
             metas.push(self.accounts.pool.clone());
 
             metas.push(self.accounts.pool_authority.clone());
+
+            metas.push(self.accounts.sst.clone());
 
             metas.push(self.accounts.payer.clone());
 
@@ -1449,9 +1518,13 @@ pub mod endcoin {
     /// Account metadata for DepositRewards instruction
     #[derive(Debug, Clone, Default)]
     pub struct DepositRewardsInstructionAccountMetas {
+        pub amm: AccountMeta,
+
         pub reward_vault: AccountMeta,
 
         pub pool: AccountMeta,
+
+        pub sst: AccountMeta,
 
         pub payer: AccountMeta,
 
@@ -1475,9 +1548,13 @@ pub mod endcoin {
     /// Account pubkeys for DepositRewards instruction
     #[derive(Debug, Clone)]
     pub struct DepositRewardsInstructionAccounts {
+        pub amm: Pubkey,
+
         pub reward_vault: Pubkey,
 
         pub pool: Pubkey,
+
+        pub sst: Pubkey,
 
         pub payer: Pubkey,
 
@@ -1494,9 +1571,13 @@ pub mod endcoin {
 
     impl DepositRewardsInstructionAccounts {
         pub fn new(
+            amm: Pubkey,
+
             reward_vault: Pubkey,
 
             pool: Pubkey,
+
+            sst: Pubkey,
 
             payer: Pubkey,
 
@@ -1511,9 +1592,13 @@ pub mod endcoin {
             mint_authority: Pubkey,
         ) -> Self {
             Self {
+                amm,
+
                 reward_vault,
 
                 pool,
+
+                sst,
 
                 payer,
 
@@ -1532,13 +1617,11 @@ pub mod endcoin {
 
     /// Instruction data for DepositRewards
     #[derive(Debug, BorshDeserialize, BorshSerialize, Clone)]
-    pub struct DepositRewardsInstructionData {
-        pub mean_temp: f64,
-    }
+    pub struct DepositRewardsInstructionData {}
 
     impl DepositRewardsInstructionData {
-        pub fn new(mean_temp: f64) -> Self {
-            Self { mean_temp }
+        pub fn new() -> Self {
+            Self {}
         }
     }
 
@@ -1557,9 +1640,13 @@ pub mod endcoin {
         }
 
         pub fn accounts(mut self, accounts: DepositRewardsInstructionAccounts) -> Self {
+            self.accounts.amm = AccountMeta::new_readonly(accounts.amm, false);
+
             self.accounts.reward_vault = AccountMeta::new_readonly(accounts.reward_vault, false);
 
             self.accounts.pool = AccountMeta::new_readonly(accounts.pool, false);
+
+            self.accounts.sst = AccountMeta::new_readonly(accounts.sst, false);
 
             self.accounts.payer = AccountMeta::new(accounts.payer, true);
 
@@ -1597,9 +1684,13 @@ pub mod endcoin {
         fn to_account_metas(&self) -> Vec<AccountMeta> {
             let mut metas = Vec::new();
 
+            metas.push(self.accounts.amm.clone());
+
             metas.push(self.accounts.reward_vault.clone());
 
             metas.push(self.accounts.pool.clone());
+
+            metas.push(self.accounts.sst.clone());
 
             metas.push(self.accounts.payer.clone());
 
@@ -1648,18 +1739,26 @@ pub mod endcoin {
     /// Account metadata for PullFeed instruction
     #[derive(Debug, Clone, Default)]
     pub struct PullFeedInstructionAccountMetas {
+        pub amm: AccountMeta,
+
+        pub sst: AccountMeta,
+
         pub feed: AccountMeta,
     }
 
     /// Account pubkeys for PullFeed instruction
     #[derive(Debug, Clone)]
     pub struct PullFeedInstructionAccounts {
+        pub amm: Pubkey,
+
+        pub sst: Pubkey,
+
         pub feed: Pubkey,
     }
 
     impl PullFeedInstructionAccounts {
-        pub fn new(feed: Pubkey) -> Self {
-            Self { feed }
+        pub fn new(amm: Pubkey, sst: Pubkey, feed: Pubkey) -> Self {
+            Self { amm, sst, feed }
         }
     }
 
@@ -1688,6 +1787,10 @@ pub mod endcoin {
         }
 
         pub fn accounts(mut self, accounts: PullFeedInstructionAccounts) -> Self {
+            self.accounts.amm = AccountMeta::new_readonly(accounts.amm, false);
+
+            self.accounts.sst = AccountMeta::new(accounts.sst, false);
+
             self.accounts.feed = AccountMeta::new_readonly(accounts.feed, false);
 
             self
@@ -1700,6 +1803,10 @@ pub mod endcoin {
 
         fn to_account_metas(&self) -> Vec<AccountMeta> {
             let mut metas = Vec::new();
+
+            metas.push(self.accounts.amm.clone());
+
+            metas.push(self.accounts.sst.clone());
 
             metas.push(self.accounts.feed.clone());
 
@@ -2164,6 +2271,158 @@ pub mod endcoin {
     }
 
     // ....................................................................
+    // Instruction: UpdateRewardWhitelist
+    // ....................................................................
+
+    /// Main instruction struct for UpdateRewardWhitelist
+    pub struct UpdateRewardWhitelistInstruction {
+        pub accounts: UpdateRewardWhitelistInstructionAccountMetas,
+        pub data: UpdateRewardWhitelistInstructionData,
+        pub remaining_accounts: Vec<AccountMeta>,
+    }
+
+    /// Account metadata for UpdateRewardWhitelist instruction
+    #[derive(Debug, Clone, Default)]
+    pub struct UpdateRewardWhitelistInstructionAccountMetas {
+        pub reward_vault: AccountMeta,
+
+        pub pool: AccountMeta,
+
+        pub amm: AccountMeta,
+
+        pub mint_a: AccountMeta,
+
+        pub mint_b: AccountMeta,
+
+        pub admin: AccountMeta,
+    }
+
+    /// Account pubkeys for UpdateRewardWhitelist instruction
+    #[derive(Debug, Clone)]
+    pub struct UpdateRewardWhitelistInstructionAccounts {
+        pub reward_vault: Pubkey,
+
+        pub pool: Pubkey,
+
+        pub amm: Pubkey,
+
+        pub mint_a: Pubkey,
+
+        pub mint_b: Pubkey,
+
+        pub admin: Pubkey,
+    }
+
+    impl UpdateRewardWhitelistInstructionAccounts {
+        pub fn new(
+            reward_vault: Pubkey,
+
+            pool: Pubkey,
+
+            amm: Pubkey,
+
+            mint_a: Pubkey,
+
+            mint_b: Pubkey,
+
+            admin: Pubkey,
+        ) -> Self {
+            Self {
+                reward_vault,
+
+                pool,
+
+                amm,
+
+                mint_a,
+
+                mint_b,
+
+                admin,
+            }
+        }
+    }
+
+    /// Instruction data for UpdateRewardWhitelist
+    #[derive(Debug, BorshDeserialize, BorshSerialize, Clone)]
+    pub struct UpdateRewardWhitelistInstructionData {
+        pub whitelist_authority: Pubkey,
+    }
+
+    impl UpdateRewardWhitelistInstructionData {
+        pub fn new(whitelist_authority: Pubkey) -> Self {
+            Self {
+                whitelist_authority,
+            }
+        }
+    }
+
+    /// Implementation for UpdateRewardWhitelistInstruction
+    impl UpdateRewardWhitelistInstruction {
+        fn discriminator() -> [u8; 8] {
+            [108u8, 35u8, 54u8, 187u8, 185u8, 7u8, 173u8, 142u8]
+        }
+
+        pub fn data(data: UpdateRewardWhitelistInstructionData) -> Self {
+            Self {
+                accounts: UpdateRewardWhitelistInstructionAccountMetas::default(),
+                data,
+                remaining_accounts: Vec::new(),
+            }
+        }
+
+        pub fn accounts(mut self, accounts: UpdateRewardWhitelistInstructionAccounts) -> Self {
+            self.accounts.reward_vault = AccountMeta::new(accounts.reward_vault, false);
+
+            self.accounts.pool = AccountMeta::new_readonly(accounts.pool, false);
+
+            self.accounts.amm = AccountMeta::new_readonly(accounts.amm, false);
+
+            self.accounts.mint_a = AccountMeta::new_readonly(accounts.mint_a, false);
+
+            self.accounts.mint_b = AccountMeta::new_readonly(accounts.mint_b, false);
+
+            self.accounts.admin = AccountMeta::new(accounts.admin, true);
+
+            self
+        }
+
+        pub fn remaining_accounts(mut self, accounts: Vec<AccountMeta>) -> Self {
+            self.remaining_accounts = accounts;
+            self
+        }
+
+        fn to_account_metas(&self) -> Vec<AccountMeta> {
+            let mut metas = Vec::new();
+
+            metas.push(self.accounts.reward_vault.clone());
+
+            metas.push(self.accounts.pool.clone());
+
+            metas.push(self.accounts.amm.clone());
+
+            metas.push(self.accounts.mint_a.clone());
+
+            metas.push(self.accounts.mint_b.clone());
+
+            metas.push(self.accounts.admin.clone());
+
+            metas.extend(self.remaining_accounts.clone());
+            metas
+        }
+
+        pub fn instruction(&self) -> Instruction {
+            let mut buffer: Vec<u8> = Vec::new();
+
+            buffer.extend_from_slice(&Self::discriminator());
+
+            self.data.serialize(&mut buffer).unwrap();
+
+            Instruction::new_with_bytes(program_id(), &buffer, self.to_account_metas())
+        }
+    }
+
+    // ....................................................................
     // Instruction: UpdateTimestamp
     // ....................................................................
 
@@ -2279,16 +2538,98 @@ pub struct Amm {
     pub fee: u16,
 
     pub created: bool,
+
+    pub last_fee_update_slot: u64,
 }
 
 impl Amm {
-    pub fn new(admin: Pubkey, fee: u16, created: bool) -> Self {
+    pub fn new(admin: Pubkey, fee: u16, created: bool, last_fee_update_slot: u64) -> Self {
         Self {
             admin,
 
             fee,
 
             created,
+
+            last_fee_update_slot,
+        }
+    }
+}
+
+/// Custom struct: ClaimRewardEvent
+#[derive(Debug, BorshDeserialize, BorshSerialize, Clone)]
+pub struct ClaimRewardEvent {
+    pub claimer: Pubkey,
+
+    pub amount_a: u64,
+
+    pub amount_b: u64,
+}
+
+impl ClaimRewardEvent {
+    pub fn new(claimer: Pubkey, amount_a: u64, amount_b: u64) -> Self {
+        Self {
+            claimer,
+
+            amount_a,
+
+            amount_b,
+        }
+    }
+}
+
+/// Custom struct: DepositLiquidityEvent
+#[derive(Debug, BorshDeserialize, BorshSerialize, Clone)]
+pub struct DepositLiquidityEvent {
+    pub pool: Pubkey,
+
+    pub mean_temp: f64,
+
+    pub amount_a: u64,
+
+    pub amount_b: u64,
+
+    pub liquidity: u64,
+}
+
+impl DepositLiquidityEvent {
+    pub fn new(pool: Pubkey, mean_temp: f64, amount_a: u64, amount_b: u64, liquidity: u64) -> Self {
+        Self {
+            pool,
+
+            mean_temp,
+
+            amount_a,
+
+            amount_b,
+
+            liquidity,
+        }
+    }
+}
+
+/// Custom struct: DepositRewardsEvent
+#[derive(Debug, BorshDeserialize, BorshSerialize, Clone)]
+pub struct DepositRewardsEvent {
+    pub reward_vault: Pubkey,
+
+    pub mean_temp: f64,
+
+    pub amount_a: u64,
+
+    pub amount_b: u64,
+}
+
+impl DepositRewardsEvent {
+    pub fn new(reward_vault: Pubkey, mean_temp: f64, amount_a: u64, amount_b: u64) -> Self {
+        Self {
+            reward_vault,
+
+            mean_temp,
+
+            amount_a,
+
+            amount_b,
         }
     }
 }
@@ -2301,16 +2642,34 @@ pub struct Pool {
     pub mint_a: Pubkey,
 
     pub mint_b: Pubkey,
+
+    pub reserve_a: Pubkey,
+
+    pub reserve_b: Pubkey,
 }
 
 impl Pool {
-    pub fn new(amm: Pubkey, mint_a: Pubkey, mint_b: Pubkey) -> Self {
+    pub fn new(
+        amm: Pubkey,
+
+        mint_a: Pubkey,
+
+        mint_b: Pubkey,
+
+        reserve_a: Pubkey,
+
+        reserve_b: Pubkey,
+    ) -> Self {
         Self {
             amm,
 
             mint_a,
 
             mint_b,
+
+            reserve_a,
+
+            reserve_b,
         }
     }
 }
@@ -2325,10 +2684,22 @@ pub struct RewardVault {
     pub mint_b: Pubkey,
 
     pub bump: u8,
+
+    pub whitelist_authority: Pubkey,
 }
 
 impl RewardVault {
-    pub fn new(pool: Pubkey, mint_a: Pubkey, mint_b: Pubkey, bump: u8) -> Self {
+    pub fn new(
+        pool: Pubkey,
+
+        mint_a: Pubkey,
+
+        mint_b: Pubkey,
+
+        bump: u8,
+
+        whitelist_authority: Pubkey,
+    ) -> Self {
         Self {
             pool,
 
@@ -2337,6 +2708,8 @@ impl RewardVault {
             mint_b,
 
             bump,
+
+            whitelist_authority,
         }
     }
 }
@@ -2347,14 +2720,138 @@ pub struct SST {
     pub temperature: f64,
 
     pub created: bool,
+
+    pub oracle_feed: Pubkey,
+
+    pub last_updated_slot: u64,
+
+    pub last_updated_unix_timestamp: i64,
 }
 
 impl SST {
-    pub fn new(temperature: f64, created: bool) -> Self {
+    pub fn new(
+        temperature: f64,
+
+        created: bool,
+
+        oracle_feed: Pubkey,
+
+        last_updated_slot: u64,
+
+        last_updated_unix_timestamp: i64,
+    ) -> Self {
         Self {
             temperature,
 
             created,
+
+            oracle_feed,
+
+            last_updated_slot,
+
+            last_updated_unix_timestamp,
+        }
+    }
+}
+
+/// Custom struct: SstUpdatedEvent
+#[derive(Debug, BorshDeserialize, BorshSerialize, Clone)]
+pub struct SstUpdatedEvent {
+    pub feed: Pubkey,
+
+    pub temperature: f64,
+
+    pub slot: u64,
+
+    pub unix_timestamp: i64,
+}
+
+impl SstUpdatedEvent {
+    pub fn new(feed: Pubkey, temperature: f64, slot: u64, unix_timestamp: i64) -> Self {
+        Self {
+            feed,
+
+            temperature,
+
+            slot,
+
+            unix_timestamp,
+        }
+    }
+}
+
+/// Custom struct: SwapEvent
+#[derive(Debug, BorshDeserialize, BorshSerialize, Clone)]
+pub struct SwapEvent {
+    pub trader: Pubkey,
+
+    pub swap_a: bool,
+
+    pub input_amount: u64,
+
+    pub net_input_amount: u64,
+
+    pub output_amount: u64,
+
+    pub fee_bps: u16,
+
+    pub temperature: f64,
+
+    pub weight_end: f64,
+
+    pub weight_gaia: f64,
+
+    pub reserve_a: u64,
+
+    pub reserve_b: u64,
+}
+
+impl SwapEvent {
+    pub fn new(
+        trader: Pubkey,
+
+        swap_a: bool,
+
+        input_amount: u64,
+
+        net_input_amount: u64,
+
+        output_amount: u64,
+
+        fee_bps: u16,
+
+        temperature: f64,
+
+        weight_end: f64,
+
+        weight_gaia: f64,
+
+        reserve_a: u64,
+
+        reserve_b: u64,
+    ) -> Self {
+        Self {
+            trader,
+
+            swap_a,
+
+            input_amount,
+
+            net_input_amount,
+
+            output_amount,
+
+            fee_bps,
+
+            temperature,
+
+            weight_end,
+
+            weight_gaia,
+
+            reserve_a,
+
+            reserve_b,
         }
     }
 }
