@@ -10,7 +10,6 @@ impl Time {
     pub const LEN: usize = 8 + 8 + 1;
 }
 
-
 #[derive(Accounts, Debug)]
 pub struct TimeState<'info> {
     // Time Account

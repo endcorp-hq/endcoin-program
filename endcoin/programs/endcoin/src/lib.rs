@@ -4,21 +4,21 @@ pub use errors::*;
 pub mod errors;
 pub use state::*;
 mod constants;
+mod events;
 mod math;
 pub mod state;
+pub use events::*;
 
 pub use contexts::*;
 pub mod contexts;
 
-declare_id!("B6tCcVMPoQYtznwRNLAoKnwMQy95c73jg8AQBp3v9dY2");
+declare_id!("Fyg2zFo8HzsyHqeNE2DRabhHZCekwY42jTVjivTfT8HB");
 
 #[program]
 pub mod endcoin {
     use super::*;
 
     pub fn create_amm(ctx: Context<CreateAmm>, fee: u16) -> Result<()> {
-        // Validate fee is within acceptable range (0-100%)
-        require!(fee <= 10000, AmmError::InvalidFee); // 10000 = 100.00%
         ctx.accounts.create_amm(fee)?;
         Ok(())
     }
@@ -31,8 +31,8 @@ pub mod endcoin {
         ctx.accounts.update_fee(new_fee)?;
         Ok(())
     }
-    pub fn create_sst(ctx: Context<CreateSST>) -> Result<()> {
-        ctx.accounts.create_sst()?;
+    pub fn create_sst(ctx: Context<CreateSST>, oracle_feed: Pubkey) -> Result<()> {
+        ctx.accounts.create_sst(oracle_feed)?;
         Ok(())
     }
 
@@ -44,30 +44,36 @@ pub mod endcoin {
         ctx.accounts.create_token_accounts()?;
         Ok(())
     }
-    pub fn create_reward_vault(ctx: Context<CreateRewardVault>) -> Result<()> {
-        ctx.accounts.create_reward_vault(&ctx.bumps)?;
+    pub fn create_reward_vault(
+        ctx: Context<CreateRewardVault>,
+        whitelist_authority: Pubkey,
+    ) -> Result<()> {
+        ctx.accounts
+            .create_reward_vault(&ctx.bumps, whitelist_authority)?;
         Ok(())
+    }
+
+    pub fn update_reward_whitelist(
+        ctx: Context<UpdateRewardWhitelist>,
+        whitelist_authority: Pubkey,
+    ) -> Result<()> {
+        ctx.accounts.update_reward_whitelist(whitelist_authority)
     }
     pub fn create_reward_token_accounts(ctx: Context<CreateRewardTokenAccounts>) -> Result<()> {
         ctx.accounts.create_reward_token_accounts()?;
         Ok(())
     }
 
-    pub fn deposit_liquidity(ctx: Context<DepositLiquidity>, mean_temp: f64) -> Result<()> {
-        ctx.accounts.deposit_liquidity(&ctx.bumps, mean_temp)
+    pub fn deposit_liquidity(ctx: Context<DepositLiquidity>) -> Result<()> {
+        ctx.accounts.deposit_liquidity(&ctx.bumps)
     }
 
-    pub fn deposit_rewards(ctx: Context<DepositRewards>, mean_temp: f64) -> Result<()> {
-        ctx.accounts.deposit_rewards(&ctx.bumps, mean_temp)
+    pub fn deposit_rewards(ctx: Context<DepositRewards>) -> Result<()> {
+        ctx.accounts.deposit_rewards(&ctx.bumps)
     }
 
-    pub fn claim_reward(
-        ctx: Context<ClaimReward>,
-        claimer: Pubkey,
-        amount_a: u64,
-        amount_b: u64,
-    ) -> Result<()> {
-        ctx.accounts.claim_reward(claimer, amount_a, amount_b)
+    pub fn claim_reward(ctx: Context<ClaimReward>, amount_a: u64, amount_b: u64) -> Result<()> {
+        ctx.accounts.claim_reward(amount_a, amount_b)
     }
 
     pub fn swap(
@@ -76,12 +82,8 @@ pub mod endcoin {
         input_amount: u64,
         min_output_amount: u64,
     ) -> Result<()> {
-        ctx.accounts.swap(
-            swap_a,
-            input_amount,
-            min_output_amount,
-            &ctx.bumps,
-        )
+        ctx.accounts
+            .swap(swap_a, input_amount, min_output_amount, &ctx.bumps)
     }
 
     pub fn pull_feed(ctx: Context<PullFeed>) -> Result<()> {

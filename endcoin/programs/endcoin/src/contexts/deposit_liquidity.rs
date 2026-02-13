@@ -6,19 +6,49 @@ use anchor_spl::{
 };
 
 use crate::{
-    constants::{POOL_AUTHORITY_SEED, REWARD_VAULT_SEED},
+    constants::{
+        AMM_SEED, MAX_ORACLE_STALENESS_SECONDS, PARAM_UPDATE_COOLDOWN_SLOTS, POOL_AUTHORITY_SEED,
+        REWARD_VAULT_SEED, SST_SEED,
+    },
     errors::AmmError,
+    events::{DepositLiquidityEvent, DepositRewardsEvent},
     math::{calculate_emissions, EmissionTarget},
-    Pool, RewardVault,
+    Amm, Pool, RewardVault, SST,
 };
 
+fn read_recent_temperature(sst: &SST) -> Result<f64> {
+    require!(sst.created, AmmError::InvalidTemperature);
+    require!(
+        sst.last_updated_unix_timestamp > 0,
+        AmmError::OracleValueMissing
+    );
+
+    let clock = Clock::get()?;
+    let staleness = clock
+        .unix_timestamp
+        .checked_sub(sst.last_updated_unix_timestamp)
+        .ok_or(AmmError::OracleFeedStale)?;
+    require!(
+        staleness <= MAX_ORACLE_STALENESS_SECONDS,
+        AmmError::OracleFeedStale
+    );
+
+    let min_ready_slot = sst
+        .last_updated_slot
+        .checked_add(PARAM_UPDATE_COOLDOWN_SLOTS)
+        .ok_or(AmmError::ArithmeticOverflow)?;
+    require!(
+        clock.slot >= min_ready_slot,
+        AmmError::ParameterRecentlyUpdated
+    );
+
+    Ok(sst.temperature)
+}
+
 impl<'info> DepositLiquidity<'info> {
-    pub fn deposit_liquidity(
-        &mut self,
-        bumps: &DepositLiquidityBumps,
-        mean_temp: f64,
-    ) -> Result<()> {
-        // compute result
+    pub fn deposit_liquidity(&mut self, bumps: &DepositLiquidityBumps) -> Result<()> {
+        let mean_temp = read_recent_temperature(&self.sst)?;
+
         let emissions = calculate_emissions(mean_temp, EmissionTarget::Pool)?;
         let amount_a = emissions.amount_a;
         let amount_b = emissions.amount_b;
@@ -29,11 +59,10 @@ impl<'info> DepositLiquidity<'info> {
             AmmError::DepositTooSmall
         );
 
-        // Mint tokens directly to pool, as we don't need a depositor.
+        // Mint tokens directly to canonical pool reserve accounts.
         let seeds = &["authority".as_bytes(), &[bumps.mint_authority]];
         let mint_signer_seeds = &[&seeds[..]];
 
-        // minting the correct amount of tokens to the pool for token a
         self.mint_token(
             self.mint_a.to_account_info(),
             self.pool_account_a.to_account_info(),
@@ -43,7 +72,6 @@ impl<'info> DepositLiquidity<'info> {
             self.token_program.to_account_info(),
         )?;
 
-        // minting the correct amount of tokens to the pool for token b
         self.mint_token(
             self.mint_b.to_account_info(),
             self.pool_account_b.to_account_info(),
@@ -53,7 +81,6 @@ impl<'info> DepositLiquidity<'info> {
             self.token_program.to_account_info(),
         )?;
 
-        // Mint the liquidity token to the AMM.
         let authority_bump = bumps.pool_authority;
         let authority_seeds = &[
             &self.pool.amm.key().to_bytes(),
@@ -73,10 +100,18 @@ impl<'info> DepositLiquidity<'info> {
             self.token_program.to_account_info(),
         )?;
 
+        emit!(DepositLiquidityEvent {
+            pool: self.pool.key(),
+            mean_temp,
+            amount_a,
+            amount_b,
+            liquidity,
+        });
+
         Ok(())
     }
 
-    pub fn mint_token(
+    fn mint_token(
         &mut self,
         mint: AccountInfo<'info>,
         to: AccountInfo<'info>,
@@ -104,6 +139,9 @@ impl<'info> DepositLiquidity<'info> {
 
 #[derive(Accounts)]
 pub struct DepositLiquidity<'info> {
+    #[account(seeds = [AMM_SEED], bump)]
+    pub amm: Box<Account<'info, Amm>>,
+
     #[account(
         seeds = [
             pool.amm.as_ref(),
@@ -111,6 +149,7 @@ pub struct DepositLiquidity<'info> {
             pool.mint_b.key().as_ref(),
         ],
         bump,
+        has_one = amm,
         has_one = mint_a,
         has_one = mint_b,
     )]
@@ -129,8 +168,14 @@ pub struct DepositLiquidity<'info> {
     )]
     pub pool_authority: AccountInfo<'info>,
 
+    #[account(
+        seeds = [SST_SEED, amm.key().as_ref()],
+        bump,
+    )]
+    pub sst: Box<Account<'info, SST>>,
+
     /// The account paying for all rents
-    #[account(mut)]
+    #[account(mut, address = amm.admin @ AmmError::UnauthorizedAdmin)]
     pub payer: Signer<'info>,
 
     #[account(mut)]
@@ -140,9 +185,21 @@ pub struct DepositLiquidity<'info> {
     pub mint_a: Box<InterfaceAccount<'info, Mint>>,
     #[account(mut)]
     pub mint_b: Box<InterfaceAccount<'info, Mint>>,
-    #[account(mut)]
+
+    #[account(
+        mut,
+        address = pool.reserve_a @ AmmError::InvalidPoolAccount,
+        constraint = pool_account_a.owner == pool_authority.key() @ AmmError::InvalidPoolAccount,
+        constraint = pool_account_a.mint == mint_a.key() @ AmmError::InvalidPoolAccount,
+    )]
     pub pool_account_a: Box<InterfaceAccount<'info, TokenAccount>>,
-    #[account(mut)]
+
+    #[account(
+        mut,
+        address = pool.reserve_b @ AmmError::InvalidPoolAccount,
+        constraint = pool_account_b.owner == pool_authority.key() @ AmmError::InvalidPoolAccount,
+        constraint = pool_account_b.mint == mint_b.key() @ AmmError::InvalidPoolAccount,
+    )]
     pub pool_account_b: Box<InterfaceAccount<'info, TokenAccount>>,
 
     #[account(
@@ -150,6 +207,7 @@ pub struct DepositLiquidity<'info> {
         payer = payer,
         associated_token::mint = mint_liquidity,
         associated_token::authority = pool_authority,
+        associated_token::token_program = token_program,
     )]
     pub depositor_account_liquidity: Box<InterfaceAccount<'info, TokenAccount>>,
 
@@ -161,15 +219,17 @@ pub struct DepositLiquidity<'info> {
     /// CHECK: Mint authority account
     #[account(
         mut,
-        seeds = [
-            b"authority"
-            ],
+        seeds = [b"authority"],
         bump
     )]
     pub mint_authority: UncheckedAccount<'info>,
 }
+
 #[derive(Accounts)]
 pub struct DepositRewards<'info> {
+    #[account(seeds = [AMM_SEED], bump)]
+    pub amm: Box<Account<'info, Amm>>,
+
     #[account(
         seeds = [
             pool.key().as_ref(),
@@ -178,6 +238,7 @@ pub struct DepositRewards<'info> {
             REWARD_VAULT_SEED,
         ],
         bump,
+        has_one = pool,
         has_one = mint_a,
         has_one = mint_b,
     )]
@@ -190,13 +251,20 @@ pub struct DepositRewards<'info> {
             pool.mint_b.key().as_ref(),
         ],
         bump,
+        has_one = amm,
         has_one = mint_a,
         has_one = mint_b,
     )]
     pub pool: Box<Account<'info, Pool>>,
 
+    #[account(
+        seeds = [SST_SEED, amm.key().as_ref()],
+        bump,
+    )]
+    pub sst: Box<Account<'info, SST>>,
+
     /// The account paying for all rents
-    #[account(mut)]
+    #[account(mut, address = amm.admin @ AmmError::UnauthorizedAdmin)]
     pub payer: Signer<'info>,
 
     #[account(mut)]
@@ -205,11 +273,11 @@ pub struct DepositRewards<'info> {
     pub mint_b: Box<InterfaceAccount<'info, Mint>>,
 
     #[account(
-
         init_if_needed,
         payer = payer,
         associated_token::mint = mint_a,
         associated_token::authority = reward_vault,
+        associated_token::token_program = token_program,
     )]
     pub reward_account_a: Box<InterfaceAccount<'info, TokenAccount>>,
     #[account(
@@ -217,6 +285,7 @@ pub struct DepositRewards<'info> {
         payer = payer,
         associated_token::mint = mint_b,
         associated_token::authority = reward_vault,
+        associated_token::token_program = token_program,
     )]
     pub reward_account_b: Box<InterfaceAccount<'info, TokenAccount>>,
 
@@ -228,17 +297,16 @@ pub struct DepositRewards<'info> {
     /// CHECK: Mint authority account
     #[account(
         mut,
-        seeds = [
-            b"authority"
-            ],
+        seeds = [b"authority"],
         bump
     )]
     pub mint_authority: UncheckedAccount<'info>,
 }
 
 impl<'info> DepositRewards<'info> {
-    pub fn deposit_rewards(&mut self, bumps: &DepositRewardsBumps, mean_temp: f64) -> Result<()> {
-        // compute result
+    pub fn deposit_rewards(&mut self, bumps: &DepositRewardsBumps) -> Result<()> {
+        let mean_temp = read_recent_temperature(&self.sst)?;
+
         let emissions = calculate_emissions(mean_temp, EmissionTarget::Rewards)?;
 
         let amount_a = emissions.amount_a;
@@ -246,11 +314,9 @@ impl<'info> DepositRewards<'info> {
 
         require!(amount_a > 0 && amount_b > 0, AmmError::DepositTooSmall);
 
-        // Mint tokens directly to reward vault, as we don't need a depositor.
         let seeds = &["authority".as_bytes(), &[bumps.mint_authority]];
         let mint_signer_seeds = &[&seeds[..]];
 
-        // minting the correct amount of tokens to the reward vault for token a
         self.mint_token(
             self.mint_a.to_account_info(),
             self.reward_account_a.to_account_info(),
@@ -260,7 +326,6 @@ impl<'info> DepositRewards<'info> {
             self.token_program.to_account_info(),
         )?;
 
-        // minting the correct amount of tokens to the pool for token b
         self.mint_token(
             self.mint_b.to_account_info(),
             self.reward_account_b.to_account_info(),
@@ -270,10 +335,17 @@ impl<'info> DepositRewards<'info> {
             self.token_program.to_account_info(),
         )?;
 
+        emit!(DepositRewardsEvent {
+            reward_vault: self.reward_vault.key(),
+            mean_temp,
+            amount_a,
+            amount_b,
+        });
+
         Ok(())
     }
 
-    pub fn mint_token(
+    fn mint_token(
         &mut self,
         mint: AccountInfo<'info>,
         to: AccountInfo<'info>,

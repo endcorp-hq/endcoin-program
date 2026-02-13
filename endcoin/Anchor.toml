@@ -5,10 +5,10 @@ resolution = true
 skip-lint = false
 
 [programs.devnet]
-endcoin = "g9pxtrXmWHss8KWNtakwyMpPbnGnD1TCogYv9NDUcB8"
+endcoin = "Fyg2zFo8HzsyHqeNE2DRabhHZCekwY42jTVjivTfT8HB"
 
 [programs.localnet]
-endcoin = "g9pxtrXmWHss8KWNtakwyMpPbnGnD1TCogYv9NDUcB8"
+endcoin = "Fyg2zFo8HzsyHqeNE2DRabhHZCekwY42jTVjivTfT8HB"
 
 [registry]
 url = "https://api.apr.dev"
@@ -27,13 +27,15 @@ deploy-all = "yarn run ts-node deployment/deploy-all.ts"
 emit = "yarn run ts-mocha -p ./tsconfig.json -t 1000000 tests/emit.ts"
 gettime = "yarn run ts-node tests/000_gettime.ts"
 init = "yarn run ts-mocha -p ./tsconfig.json -t 1000000 tests/00_init.ts"
+localnet-init = "yarn localnet:init"
+localnet-simulate = "yarn localnet:simulate"
+localnet-smoke = "yarn localnet:smoke"
+localnet-mev = "yarn localnet:mev"
+localnet-test = "yarn localnet:test"
 swap = "yarn run ts-mocha -p ./tsconfig.json -t 1000000 tests/swap.ts"
 test = "yarn run ts-mocha -p ./tsconfig.json -t 1000000 tests/*.ts"
 test-0 = "yarn run ts-mocha -p ./tsconfig.json -t 1000000 tests/test.ts"
 update-admin = "yarn run ts-node deployment/update-amm-admin.ts"
-localnet-init = "yarn localnet:init"
-localnet-simulate = "yarn localnet:simulate"
-localnet-smoke = "yarn localnet:smoke"
 
 [test]
 startup_wait = 5000

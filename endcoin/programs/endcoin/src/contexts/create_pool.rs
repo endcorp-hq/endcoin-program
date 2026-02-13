@@ -12,10 +12,22 @@ use anchor_spl::{
 
 impl<'info> CreatePool<'info> {
     pub fn create_pool(&mut self) -> Result<()> {
+        let reserve_a = anchor_spl::associated_token::get_associated_token_address_with_program_id(
+            &self.pool_authority.key(),
+            &self.mint_a.key(),
+            &self.token_program.key(),
+        );
+        let reserve_b = anchor_spl::associated_token::get_associated_token_address_with_program_id(
+            &self.pool_authority.key(),
+            &self.mint_b.key(),
+            &self.token_program.key(),
+        );
         let pool = &mut self.pool;
         pool.amm = self.amm.key();
         pool.mint_a = self.mint_a.key();
         pool.mint_b = self.mint_b.key();
+        pool.reserve_a = reserve_a;
+        pool.reserve_b = reserve_b;
 
         Ok(())
     }
@@ -81,10 +93,25 @@ pub struct CreatePool<'info> {
 #[derive(Accounts)]
 pub struct CreateTokenAccounts<'info> {
     #[account(
+        seeds = [
+            pool.amm.as_ref(),
+            pool.mint_a.key().as_ref(),
+            pool.mint_b.key().as_ref(),
+        ],
+        bump,
+        has_one = amm,
+        has_one = mint_a,
+        has_one = mint_b,
+    )]
+    pub pool: Box<Account<'info, Pool>>,
+
+    #[account(
         init,
         payer = payer,
         associated_token::mint = mint_a,
         associated_token::authority = pool_authority,
+        associated_token::token_program = token_program,
+        constraint = pool_account_a.key() == pool.reserve_a @ AmmError::InvalidPoolAccount,
     )]
     pub pool_account_a: Box<InterfaceAccount<'info, TokenAccount>>,
 
@@ -93,6 +120,8 @@ pub struct CreateTokenAccounts<'info> {
         payer = payer,
         associated_token::mint = mint_b,
         associated_token::authority = pool_authority,
+        associated_token::token_program = token_program,
+        constraint = pool_account_b.key() == pool.reserve_b @ AmmError::InvalidPoolAccount,
     )]
     pub pool_account_b: Box<InterfaceAccount<'info, TokenAccount>>,
 
@@ -108,12 +137,7 @@ pub struct CreateTokenAccounts<'info> {
     )]
     pub pool_authority: AccountInfo<'info>,
 
-    #[account(
-        seeds = [
-            AMM_SEED
-        ],
-        bump,
-    )]
+    #[account(seeds = [AMM_SEED], bump)]
     pub amm: Box<Account<'info, Amm>>,
 
     pub mint_a: Box<InterfaceAccount<'info, Mint>>,

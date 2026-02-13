@@ -1,5 +1,6 @@
 use anchor_lang::prelude::*;
 
+use crate::events::ClaimRewardEvent;
 use crate::AmmError;
 use crate::{constants::REWARD_VAULT_SEED, state::Pool, RewardVault};
 use anchor_spl::{
@@ -8,11 +9,8 @@ use anchor_spl::{
 };
 
 impl<'info> ClaimReward<'info> {
-    pub fn claim_reward(&mut self, claimer: Pubkey, amount_a: u64, amount_b: u64) -> Result<()> {
-        // check the payer is signer
-        if self.claimer.key != &claimer {
-            return Err(AmmError::UnauthorizedClaimer.into());
-        }
+    pub fn claim_reward(&mut self, amount_a: u64, amount_b: u64) -> Result<()> {
+        require!(amount_a > 0 || amount_b > 0, AmmError::DepositTooSmall);
 
         // check if the reward account has enough balance
         if self.reward_account_a.amount < amount_a || self.reward_account_b.amount < amount_b {
@@ -66,6 +64,12 @@ impl<'info> ClaimReward<'info> {
             self.mint_b.decimals,
         )?;
 
+        emit!(ClaimRewardEvent {
+            claimer: self.claimer.key(),
+            amount_a,
+            amount_b,
+        });
+
         Ok(())
     }
 }
@@ -83,13 +87,14 @@ pub struct ClaimReward<'info> {
     pub pool: Box<Account<'info, Pool>>,
 
     #[account(mut)]
-    claimer: Signer<'info>,
+    pub claimer: Signer<'info>,
 
     #[account(
         init_if_needed,
         payer = claimer,
         associated_token::mint = mint_a,
-        associated_token::authority = claimer
+        associated_token::authority = claimer,
+        associated_token::token_program = token_program,
     )]
     pub to_mint_a_account: Box<InterfaceAccount<'info, TokenAccount>>,
 
@@ -97,7 +102,8 @@ pub struct ClaimReward<'info> {
         init_if_needed,
         payer = claimer,
         associated_token::mint = mint_b,
-        associated_token::authority = claimer
+        associated_token::authority = claimer,
+        associated_token::token_program = token_program,
     )]
     pub to_mint_b_account: Box<InterfaceAccount<'info, TokenAccount>>,
 
@@ -114,8 +120,14 @@ pub struct ClaimReward<'info> {
             REWARD_VAULT_SEED,
         ],
         bump = reward_vault.bump,
+        has_one = pool,
+        has_one = mint_a,
+        has_one = mint_b,
     )]
     pub reward_vault: Box<Account<'info, RewardVault>>,
+
+    #[account(address = reward_vault.whitelist_authority @ AmmError::UnauthorizedClaimer)]
+    pub whitelist_authority: Signer<'info>,
 
     #[account(
         mut,

@@ -8,6 +8,8 @@
         "localnet:init": "ts-node scripts/localnet/init.ts",
         "localnet:simulate": "ts-node scripts/localnet/simulate.ts",
         "localnet:smoke": "ts-mocha -p ./tsconfig.json -t 1000000 tests/localnet_smoke.ts",
+        "localnet:mev": "ts-mocha -p ./tsconfig.json -t 1000000 tests/localnet_mev_guards.ts",
+        "localnet:test": "yarn localnet:smoke && yarn localnet:mev",
         "localnet:loadtest": "ts-node scripts/localnet/loadtest.ts"
     },
     "dependencies": {

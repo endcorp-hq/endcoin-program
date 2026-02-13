@@ -80,11 +80,14 @@ pub fn apply_fee(amount: u64, fee_bps: u16) -> Result<(u64, u64)> {
         fee_bps as u64 <= FEE_BPS_DENOMINATOR as u64,
         AmmError::InvalidFeeBps
     );
-    // Deterministic round-down fee to avoid dust creation and keep the invariant monotonic.
-    let fee = (amount as u128)
+    // Deterministic fee with a 1-unit minimum when fee_bps > 0 to prevent zero-fee trade splitting.
+    let mut fee = (amount as u128)
         .checked_mul(fee_bps as u128)
         .ok_or(AmmError::ArithmeticOverflow)?
         / FEE_BPS_DENOMINATOR as u128;
+    if fee_bps > 0 && amount > 0 && fee == 0 {
+        fee = 1;
+    }
     let fee = u64::try_from(fee).map_err(|_| AmmError::ArithmeticOverflow)?;
     require!(fee <= amount, AmmError::ArithmeticOverflow);
 
@@ -214,13 +217,7 @@ mod tests {
     }
 
     fn approx_eq(a: f64, b: f64, tol: f64) {
-        assert!(
-            (a - b).abs() <= tol,
-            "left {} right {} tol {}",
-            a,
-            b,
-            tol
-        );
+        assert!((a - b).abs() <= tol, "left {} right {} tol {}", a, b, tol);
     }
 
     #[test]
@@ -235,7 +232,7 @@ mod tests {
     #[test]
     fn apply_fee_rounds_down_without_dust() {
         let (net, fee) = apply_fee(1, 333).expect("fee applies");
-        assert_eq!((net, fee), (1, 0));
+        assert_eq!((net, fee), (0, 1));
 
         let (net, fee) = apply_fee(10_001, 10_000).expect("max fee");
         assert_eq!((net, fee), (0, 10_001));
@@ -302,8 +299,7 @@ mod tests {
 
     #[test]
     fn weighted_swap_rejects_non_finite_weights() {
-        let err =
-            compute_weighted_swap_output(10, 100, 100, f64::INFINITY, 1.0).unwrap_err();
+        let err = compute_weighted_swap_output(10, 100, 100, f64::INFINITY, 1.0).unwrap_err();
         assert_eq!(code(err), amm_code(AmmError::ArithmeticOverflow));
     }
 

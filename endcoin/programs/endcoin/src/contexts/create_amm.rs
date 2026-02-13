@@ -1,4 +1,8 @@
-use crate::{constants::AMM_SEED, errors::*, state::Amm};
+use crate::{
+    constants::{AMM_SEED, MAX_FEE_BPS, MIN_FEE_BPS},
+    errors::*,
+    state::Amm,
+};
 use anchor_lang::prelude::*;
 
 #[derive(Accounts)]
@@ -13,7 +17,7 @@ pub struct CreateAmm<'info> {
             AMM_SEED,
         ],
         bump,
-        constraint = fee >= 5 && fee < 10000 @ AmmError::InvalidFee,
+        constraint = fee >= MIN_FEE_BPS && fee <= MAX_FEE_BPS @ AmmError::InvalidFee,
     )]
     pub amm: Box<Account<'info, Amm>>,
 
@@ -72,11 +76,13 @@ impl<'info> CreateAmm<'info> {
         match self.amm.created {
             true => return Err(AmmError::AlreadyCreated.into()),
             false => {
+                let clock = Clock::get()?;
                 // set inner values of amm
                 self.amm.set_inner(Amm {
                     admin: self.admin.key(),
                     fee,
                     created: true,
+                    last_fee_update_slot: clock.slot,
                 });
                 Ok(())
             }
@@ -105,11 +111,17 @@ impl<'info> UpdateFee<'info> {
     pub fn update_fee(&mut self, new_fee: u16) -> Result<()> {
         // Check if the AMM has already been created
         require!(self.amm.created, AmmError::NotCreated);
+        require!(
+            new_fee >= MIN_FEE_BPS && new_fee <= MAX_FEE_BPS,
+            AmmError::InvalidFee
+        );
 
         // Add in a check for the admin's signature
         match self.admin.key() == self.amm.admin {
             true => {
+                let clock = Clock::get()?;
                 self.amm.fee = new_fee;
+                self.amm.last_fee_update_slot = clock.slot;
                 msg!("Fee Updated");
                 return Ok(());
             }

@@ -6,22 +6,60 @@ use anchor_spl::{
 };
 
 use crate::{
-    constants::{AMM_SEED, POOL_AUTHORITY_SEED},
+    constants::{
+        AMM_SEED, FEE_BPS_DENOMINATOR, MAX_ORACLE_STALENESS_SECONDS, MAX_SWAP_OUTPUT_BPS,
+        PARAM_UPDATE_COOLDOWN_SLOTS, POOL_AUTHORITY_SEED, SST_SEED,
+    },
     errors::*,
+    events::SwapEvent,
     math::{
         apply_fee, compute_weighted_invariant, compute_weighted_swap_output, temperature_weights,
     },
     state::{Amm, Pool, SST},
 };
 
+fn enforce_recent_parameters(amm: &Amm, sst: &SST) -> Result<()> {
+    require!(sst.created, AmmError::InvalidTemperature);
+    require!(
+        sst.last_updated_unix_timestamp > 0,
+        AmmError::OracleValueMissing
+    );
+
+    let clock = Clock::get()?;
+
+    let oracle_staleness = clock
+        .unix_timestamp
+        .checked_sub(sst.last_updated_unix_timestamp)
+        .ok_or(AmmError::OracleFeedStale)?;
+    require!(
+        oracle_staleness <= MAX_ORACLE_STALENESS_SECONDS,
+        AmmError::OracleFeedStale
+    );
+
+    let sst_ready_slot = sst
+        .last_updated_slot
+        .checked_add(PARAM_UPDATE_COOLDOWN_SLOTS)
+        .ok_or(AmmError::ArithmeticOverflow)?;
+    require!(
+        clock.slot >= sst_ready_slot,
+        AmmError::ParameterRecentlyUpdated
+    );
+
+    let fee_ready_slot = amm
+        .last_fee_update_slot
+        .checked_add(PARAM_UPDATE_COOLDOWN_SLOTS)
+        .ok_or(AmmError::ArithmeticOverflow)?;
+    require!(
+        clock.slot >= fee_ready_slot,
+        AmmError::ParameterRecentlyUpdated
+    );
+
+    Ok(())
+}
+
 #[derive(Accounts)]
 pub struct SwapExactTokensForTokens<'info> {
-    #[account(
-        seeds = [
-            AMM_SEED
-        ],
-        bump,
-    )]
+    #[account(seeds = [AMM_SEED], bump)]
     pub amm: Account<'info, Amm>,
 
     /// CHECK: Read only authority
@@ -42,6 +80,7 @@ pub struct SwapExactTokensForTokens<'info> {
 
     pub mint_a: Box<InterfaceAccount<'info, Mint>>,
     pub mint_b: Box<InterfaceAccount<'info, Mint>>,
+
     #[account(
         seeds = [
             pool.amm.as_ref(),
@@ -54,21 +93,27 @@ pub struct SwapExactTokensForTokens<'info> {
         has_one = mint_b,
     )]
     pub pool: Box<Account<'info, Pool>>,
+
     #[account(
         mut,
-        constraint = pool_account_a.owner == pool_authority.key(),
-        constraint = pool_account_a.mint == mint_a.key(),
+        address = pool.reserve_a @ AmmError::InvalidPoolAccount,
+        constraint = pool_account_a.owner == pool_authority.key() @ AmmError::InvalidPoolAccount,
+        constraint = pool_account_a.mint == mint_a.key() @ AmmError::InvalidPoolAccount,
     )]
     pub pool_account_a: Box<InterfaceAccount<'info, TokenAccount>>,
 
     #[account(
         mut,
-        constraint = pool_account_b.owner == pool_authority.key(),
-        constraint = pool_account_b.mint == mint_b.key(),
+        address = pool.reserve_b @ AmmError::InvalidPoolAccount,
+        constraint = pool_account_b.owner == pool_authority.key() @ AmmError::InvalidPoolAccount,
+        constraint = pool_account_b.mint == mint_b.key() @ AmmError::InvalidPoolAccount,
     )]
     pub pool_account_b: Box<InterfaceAccount<'info, TokenAccount>>,
 
-    #[account(constraint = sst.created @ AmmError::InvalidTemperature)]
+    #[account(
+        seeds = [SST_SEED, amm.key().as_ref()],
+        bump,
+    )]
     pub sst: Box<Account<'info, SST>>,
 
     #[account(
@@ -76,6 +121,7 @@ pub struct SwapExactTokensForTokens<'info> {
         payer = payer,
         associated_token::mint = mint_a,
         associated_token::authority = trader,
+        associated_token::token_program = token_program,
     )]
     pub trader_account_a: Box<InterfaceAccount<'info, TokenAccount>>,
 
@@ -84,6 +130,7 @@ pub struct SwapExactTokensForTokens<'info> {
         payer = payer,
         associated_token::mint = mint_b,
         associated_token::authority = trader,
+        associated_token::token_program = token_program,
     )]
     pub trader_account_b: Box<InterfaceAccount<'info, TokenAccount>>,
 
@@ -107,7 +154,9 @@ impl<'info> SwapExactTokensForTokens<'info> {
     ) -> Result<()> {
         require!(input_amount > 0, AmmError::InputAmountTooSmall);
 
-        // Temperature-aware weights tilt pricing based on current SST.
+        enforce_recent_parameters(&self.amm, &self.sst)?;
+
+        // Temperature-aware weights tilt pricing based on the latest oracle SST.
         let weights = temperature_weights(self.sst.temperature)?;
 
         let (
@@ -168,6 +217,15 @@ impl<'info> SwapExactTokensForTokens<'info> {
         )?;
         require!(output >= min_output_amount, AmmError::OutputTooSmall);
 
+        let output_share_bps = (output as u128)
+            .checked_mul(FEE_BPS_DENOMINATOR as u128)
+            .ok_or(AmmError::ArithmeticOverflow)?
+            / reserve_out as u128;
+        require!(
+            output_share_bps <= MAX_SWAP_OUTPUT_BPS as u128,
+            AmmError::PriceImpactTooHigh
+        );
+
         let authority_bump = bumps.pool_authority;
         let authority_seeds = &[
             self.pool.amm.as_ref(),
@@ -207,13 +265,19 @@ impl<'info> SwapExactTokensForTokens<'info> {
             output_mint.decimals,
         )?;
 
-        msg!(
-            "Swap {}: input {}, net {}, output {}",
-            if swap_a { "A->B" } else { "B->A" },
+        emit!(SwapEvent {
+            trader: self.trader.key(),
+            swap_a,
             input_amount,
-            taxed_input,
-            output
-        );
+            net_input_amount: taxed_input,
+            output_amount: output,
+            fee_bps: self.amm.fee,
+            temperature: self.sst.temperature,
+            weight_end: weights.weight_end,
+            weight_gaia: weights.weight_gaia,
+            reserve_a: self.pool_account_a.amount,
+            reserve_b: self.pool_account_b.amount,
+        });
 
         self.pool_account_a.reload()?;
         self.pool_account_b.reload()?;

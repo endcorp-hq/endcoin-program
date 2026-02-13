@@ -10,6 +10,16 @@ pub const SST_SEED: &[u8] = b"sea-surface-temperature";
 pub const AMM_SEED: &[u8] = b"amm";
 #[constant]
 pub const FEE_BPS_DENOMINATOR: u16 = 10_000; // 100%
+#[constant]
+pub const MIN_FEE_BPS: u16 = 5;
+#[constant]
+pub const MAX_FEE_BPS: u16 = 1_000; // 10%
+#[constant]
+pub const PARAM_UPDATE_COOLDOWN_SLOTS: u64 = 1;
+#[constant]
+pub const MAX_ORACLE_STALENESS_SECONDS: i64 = 15 * 60;
+#[constant]
+pub const MAX_SWAP_OUTPUT_BPS: u16 = 3_000; // 30%
 
 // Emission curve parameters
 pub const DEATH_TEMP_C: f64 = 35.0;

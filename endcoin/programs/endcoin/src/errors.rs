@@ -57,12 +57,36 @@ pub enum AmmError {
 
     #[msg("Invalid or non-finite temperature reading")]
     InvalidTemperature,
+
+    #[msg("Provided reserve account does not match canonical pool reserve")]
+    InvalidPoolAccount,
+
+    #[msg("Oracle feed account does not match configured feed")]
+    OracleFeedMismatch,
+
+    #[msg("Oracle feed data is stale")]
+    OracleFeedStale,
+
+    #[msg("Oracle feed data is invalid")]
+    InvalidOracleFeed,
+
+    #[msg("Oracle value has not been pulled yet")]
+    OracleValueMissing,
+
+    #[msg("Swap blocked because a parameter was updated too recently")]
+    ParameterRecentlyUpdated,
+
+    #[msg("Swap price impact exceeds configured limit")]
+    PriceImpactTooHigh,
 }
 
 #[error_code]
 pub enum SstError {
     #[msg("SST Already Initialized")]
     AlreadyInitialized,
+
+    #[msg("SST Not Initialized")]
+    NotInitialized,
 }
 
 #[error_code]

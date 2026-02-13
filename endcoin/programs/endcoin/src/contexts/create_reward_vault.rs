@@ -11,7 +11,11 @@ use anchor_spl::{
 };
 
 impl<'info> CreateRewardVault<'info> {
-    pub fn create_reward_vault(&mut self, bumps: &CreateRewardVaultBumps) -> Result<()> {
+    pub fn create_reward_vault(
+        &mut self,
+        bumps: &CreateRewardVaultBumps,
+        whitelist_authority: Pubkey,
+    ) -> Result<()> {
         require!(
             self.mint_a.key() != self.mint_b.key(),
             AmmError::InvalidMint
@@ -27,6 +31,7 @@ impl<'info> CreateRewardVault<'info> {
             mint_a: self.mint_a.key(),
             mint_b: self.mint_b.key(),
             bump: bumps.reward_vault,
+            whitelist_authority,
         });
 
         Ok(())
@@ -44,6 +49,17 @@ impl<'info> CreateRewardTokenAccounts<'info> {
             AmmError::UnauthorizedAdmin
         );
 
+        Ok(())
+    }
+}
+
+impl<'info> UpdateRewardWhitelist<'info> {
+    pub fn update_reward_whitelist(&mut self, whitelist_authority: Pubkey) -> Result<()> {
+        require!(
+            self.admin.key() == self.amm.admin,
+            AmmError::UnauthorizedAdmin
+        );
+        self.reward_vault.whitelist_authority = whitelist_authority;
         Ok(())
     }
 }
@@ -98,6 +114,49 @@ pub struct CreateRewardVault<'info> {
 }
 
 #[derive(Accounts)]
+pub struct UpdateRewardWhitelist<'info> {
+    #[account(
+        mut,
+        seeds = [
+            pool.key().as_ref(),
+            mint_a.key().as_ref(),
+            mint_b.key().as_ref(),
+            REWARD_VAULT_SEED,
+        ],
+        bump = reward_vault.bump,
+        has_one = pool,
+        has_one = mint_a,
+        has_one = mint_b,
+    )]
+    pub reward_vault: Box<Account<'info, RewardVault>>,
+
+    #[account(
+        seeds = [
+            amm.key().as_ref(),
+            mint_a.key().as_ref(),
+            mint_b.key().as_ref(),
+        ],
+        bump,
+        has_one = amm,
+        has_one = mint_a,
+        has_one = mint_b,
+    )]
+    pub pool: Box<Account<'info, Pool>>,
+
+    #[account(
+        seeds = [AMM_SEED],
+        bump,
+    )]
+    pub amm: Box<Account<'info, Amm>>,
+
+    pub mint_a: Box<InterfaceAccount<'info, Mint>>,
+    pub mint_b: Box<InterfaceAccount<'info, Mint>>,
+
+    #[account(mut)]
+    pub admin: Signer<'info>,
+}
+
+#[derive(Accounts)]
 pub struct CreateRewardTokenAccounts<'info> {
     #[account(
         seeds = [
@@ -124,6 +183,7 @@ pub struct CreateRewardTokenAccounts<'info> {
         payer = payer,
         associated_token::mint = mint_a,
         associated_token::authority = reward_vault,
+        associated_token::token_program = token_program,
     )]
     pub reward_account_a: Box<InterfaceAccount<'info, TokenAccount>>,
 
@@ -132,6 +192,7 @@ pub struct CreateRewardTokenAccounts<'info> {
         payer = payer,
         associated_token::mint = mint_b,
         associated_token::authority = reward_vault,
+        associated_token::token_program = token_program,
     )]
     pub reward_account_b: Box<InterfaceAccount<'info, TokenAccount>>,
 
